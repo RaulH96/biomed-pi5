@@ -1,0 +1,25 @@
+sensors:
+  mlx90640:
+    enabled: true
+    refresh_rate_hz: 2
+    calibration_offset: 0.7
+    min_pixels_for_detection: 12
+    ambient_margin_c: 3.0
+
+  max30102:
+    enabled: true
+    i2c_channel: 1
+    i2c_address: 0x57
+    led_mode: 2
+    sample_rate: 100
+    sample_average: 4
+    pulse_width: 411
+    power_level: 0x2F
+    algorithm:
+      adaptive_window: 2.0
+      thresh_high: 0.75
+      thresh_low: 0.60
+      min_interval: 0.35
+    calibration:
+      spo2_coeff_a: 136
+      spo2_coeff_b: 25
