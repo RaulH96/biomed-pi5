@@ -46,9 +46,9 @@ class WaveformWidget(QWidget):
         super().__init__(parent)
         self.dark             = dark
         self.show_thresholds  = show_thresholds
-        self._data       = deque([0.0] * self.HISTORY, maxlen=self.HISTORY)
-        self._thresh_high= deque([0.0] * self.HISTORY, maxlen=self.HISTORY)
-        self._thresh_low = deque([0.0] * self.HISTORY, maxlen=self.HISTORY)
+        self._data       = deque(maxlen=self.HISTORY)
+        self._thresh_high= deque(maxlen=self.HISTORY)
+        self._thresh_low = deque(maxlen=self.HISTORY)
         self._beat       = False
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setMinimumHeight(100)
@@ -344,7 +344,7 @@ class SpO2Widget(QWidget):
     def _setup_timer(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update)
-        self.timer.start(20)
+        self.timer.start(33)
 
     def _update(self):
         if self.monitor is None:

@@ -65,6 +65,6 @@ ui/
 python -m venv biomed-pi5/.venv
 source biomed-pi5/.venv/bin/activate
 
-
+export DISPLAY=:0
 
 

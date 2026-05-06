@@ -232,7 +232,7 @@ class SpO2Widget2(QWidget):
     def _setup_timer(self):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._update)
-        self.timer.start(20)
+        self.timer.start(33)
 
     def _update(self):
         if self.monitor is None:

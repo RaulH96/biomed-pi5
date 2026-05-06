@@ -1,7 +1,7 @@
 sensors:
   mlx90640:
     enabled: true
-    refresh_rate_hz: 2
+    refresh_rate_hz: 4
     calibration_offset: 0.7
     min_pixels_for_detection: 12
     ambient_margin_c: 3.0
@@ -17,9 +17,33 @@ sensors:
     power_level: 0x2F
     algorithm:
       adaptive_window: 2.0
-      thresh_high: 0.60
-      thresh_low: 0.45
+      thresh_high: 0.60   # 0.75
+      thresh_low: 0.45  # 0.60
       min_interval: 0.35
     calibration:
-      spo2_coeff_a: 105
-      spo2_coeff_b: 25
+      spo2_coeff_a: 105  #136
+      spo2_coeff_b: 25  
+
+
+  pressure:
+    enabled: true
+    pin_pump: 17
+    pin_valve: 27
+    i2c_channel: 1
+    adc_channel: 0
+    adc_gain: 0.6666666666666666 
+    adc_data_rate: 860
+    offset_mmhg: 3.8
+    meta_inflate_mmhg: 165.0
+    meta_stop_mmhg: 30.0
+    algorithm:
+      peak_distance: 0.4
+      ratio_sys: 0.40
+      ratio_dia: 0.60
+      hr_interval_min: 0.35
+      hr_interval_max: 1.43
+    calibration:
+      sys_scale: 0.857
+      sys_offset: -6.8
+      dia_scale: 0.614
+      dia_offset: 37.8
