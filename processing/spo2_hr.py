@@ -51,34 +51,84 @@ class SpO2Monitor:
         else:
             print("[SpO2Monitor] ERROR: Sensor no encontrado.")
 
+    # def update(self) -> dict | None:
+    #     """
+    #     Llama en loop. Retorna dict con bpm, spo2, beat_in_progress
+    #     o None si no hay sensor.
+    #     """
+    #     if not self.connected:
+    #         return None
+
+    #     self.driver.check()
+    #     while self.driver.available():
+    #         ir_raw  = self.driver.get_ir()
+    #         red_raw = self.driver.get_red()
+    #         self.driver.next_sample()
+
+    #         if ir_raw < 50000:
+    #             self._reset()
+    #         else:
+    #             self._filter_ir.append(ir_raw)
+    #             self.current_ir = sum(self._filter_ir) / len(self._filter_ir)
+    #             self.ir_buffer.append(self.current_ir)
+
+    #             self._filter_red.append(red_raw)
+    #             self.current_red = sum(self._filter_red) / len(self._filter_red)
+    #             self.red_buffer.append(self.current_red)
+
+    #             self._detect_beat()
+    #             self.thresh_high_hist.append(self.thresh_high)
+    #             self.thresh_low_hist.append(self.thresh_low)
+
+    #     if time.time() - self._last_beat_time > 3.0:
+    #         self.bpm  = 0
+    #         self.spo2 = 0.0
+    #         self.beat_times.clear()
+
+    #     return {
+    #         "bpm":              self.bpm,
+    #         "spo2":             round(self.spo2, 1),
+    #         "beat_in_progress": self.beat_in_progress,
+    #         "connected":        self.connected,
+    #     }
+    
     def update(self) -> dict | None:
-        """
-        Llama en loop. Retorna dict con bpm, spo2, beat_in_progress
-        o None si no hay sensor.
-        """
+        
         if not self.connected:
             return None
 
-        self.driver.check()
-        while self.driver.available():
-            ir_raw  = self.driver.get_ir()
-            red_raw = self.driver.get_red()
-            self.driver.next_sample()
+        try:
+            self.driver.check()
+        except Exception as e:
+            print(f"[SpO2Monitor] Error en check(): {e}")
+            self.connected = False
+            return None
 
-            if ir_raw < 50000:
-                self._reset()
-            else:
-                self._filter_ir.append(ir_raw)
-                self.current_ir = sum(self._filter_ir) / len(self._filter_ir)
-                self.ir_buffer.append(self.current_ir)
+        try:
+            while self.driver.available():
+                ir_raw  = self.driver.get_ir()
+                red_raw = self.driver.get_red()
+                self.driver.next_sample()
 
-                self._filter_red.append(red_raw)
-                self.current_red = sum(self._filter_red) / len(self._filter_red)
-                self.red_buffer.append(self.current_red)
+                if ir_raw < 50000:
+                    self._reset()
+                else:
+                    self._filter_ir.append(ir_raw)
+                    self.current_ir = sum(self._filter_ir) / len(self._filter_ir)
+                    self.ir_buffer.append(self.current_ir)
 
-                self._detect_beat()
-                self.thresh_high_hist.append(self.thresh_high)
-                self.thresh_low_hist.append(self.thresh_low)
+                    self._filter_red.append(red_raw)
+                    self.current_red = sum(self._filter_red) / len(self._filter_red)
+                    self.red_buffer.append(self.current_red)
+
+                    self._detect_beat()
+                    self.thresh_high_hist.append(self.thresh_high)
+                    self.thresh_low_hist.append(self.thresh_low)
+
+        except Exception as e:
+            print(f"[SpO2Monitor] Error leyendo muestra: {e}")
+            self._reset()
+            # No matar connected — puede ser un glitch transitorio I2C
 
         if time.time() - self._last_beat_time > 3.0:
             self.bpm  = 0
@@ -91,7 +141,7 @@ class SpO2Monitor:
             "beat_in_progress": self.beat_in_progress,
             "connected":        self.connected,
         }
-
+    
     def _detect_beat(self) -> bool:
         if len(self.ir_buffer) < 20:
             return False

@@ -1,6 +1,11 @@
-# main.py
-from core.manager import read_temperature
+# main.py — punto de entrada principal
+import sys
+from PyQt6.QtWidgets import QApplication
+from ui.main_window import MainWindow
 
 if __name__ == "__main__":
-    result = read_temperature()
-    print(result)
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec())
