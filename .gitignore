@@ -13,3 +13,4 @@ __pycache__/
 .DS_Store
 Thumbs.db
 trash/
+venv_recovery.log

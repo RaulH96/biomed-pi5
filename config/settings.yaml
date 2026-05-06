@@ -17,9 +17,9 @@ sensors:
     power_level: 0x2F
     algorithm:
       adaptive_window: 2.0
-      thresh_high: 0.75
-      thresh_low: 0.60
+      thresh_high: 0.60
+      thresh_low: 0.45
       min_interval: 0.35
     calibration:
-      spo2_coeff_a: 136
+      spo2_coeff_a: 105
       spo2_coeff_b: 25
