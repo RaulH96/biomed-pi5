@@ -197,3 +197,26 @@ class SpO2Monitor:
 
     def shutdown(self):
         self.driver.shutdown()
+    
+    def pause(self):
+        """Apaga los LEDs cuando no se está midiendo."""
+        try:
+            self.driver.shutdown()
+            print("[SpO2Monitor] LEDs apagados")
+        except Exception:
+            pass
+
+    def resume(self):
+        """Enciende los LEDs al volver al tab."""
+        try:
+            if self.driver.begin():
+                self.driver.setup(
+                    power_level  = _cfg["power_level"],
+                    led_mode     = _cfg["led_mode"],
+                    sample_rate  = _cfg["sample_rate"],
+                    sample_avg   = _cfg["sample_average"],
+                    pulse_width  = _cfg["pulse_width"],
+                )
+                print("[SpO2Monitor] LEDs encendidos")
+        except Exception as e:
+            print(f"[SpO2Monitor] Error al reanudar: {e}")

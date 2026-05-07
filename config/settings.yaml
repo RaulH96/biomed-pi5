@@ -1,49 +1,199 @@
+# ─────────────────────────────────────────────────────────────
+# biomed-pi5 · Configuración global del sistema
+# Edita este archivo para ajustar calibraciones y parámetros
+# sin tocar el código fuente.
+# ─────────────────────────────────────────────────────────────
+
 sensors:
+
+  # ── Sensor térmico MLX90640 ───────────────────────────────
   mlx90640:
     enabled: true
-    refresh_rate_hz: 4
-    calibration_offset: 0.7
-    min_pixels_for_detection: 12
-    ambient_margin_c: 3.0
 
+    # Frecuencia de refresco del sensor (hz)
+    # Valores válidos: 1, 2, 4, 8, 16, 32, 64
+    # A mayor frecuencia, mayor fluidez pero más carga de CPU
+    refresh_rate_hz: 4
+
+    # Offset de calibración en °C
+    # La frente siempre mide ~0.5–1°C menos que la temperatura bucal
+    # Ajustar comparando con termómetro de referencia bucal:
+    #   offset = temp_bucal_real - temp_sensor_frente
+    calibration_offset: 0.7
+
+    # Mínimo de píxeles calientes para considerar que hay una persona
+    # Si el sensor detecta muy poca área caliente, ignora la lectura
+    # Bajar si no detecta personas a distancia, subir si hay falsos positivos
+    min_pixels_for_detection: 12
+
+    # Margen mínimo sobre la temperatura ambiente para considerar piel (°C)
+    # Ejemplo: si ambiente=25°C y margen=1.5, busca regiones >= 26.5°C
+    # Bajar si el cuarto está muy caliente y no detecta personas
+    # Subir si hay muchos falsos positivos con objetos calientes
+    ambient_margin_c: 1.5
+
+  # ── Oxímetro y pulso MAX30102 ─────────────────────────────
   max30102:
     enabled: true
+
+    # Bus I²C (1 = pines GPIO 2/3 de la Pi)
     i2c_channel: 1
+
+    # Dirección I²C del sensor (fija, no cambiar)
     i2c_address: 0x57
+
+    # Modo de LEDs: 2 = Rojo + IR (SpO2), 3 = Rojo + IR + Verde
     led_mode: 2
+
+    # Muestras por segundo del sensor
+    # Valores válidos: 50, 100, 200, 400, 800, 1000, 1600, 3200
     sample_rate: 100
+
+    # Promedio de muestras en hardware (reduce ruido)
+    # Valores válidos: 1, 2, 4, 8, 16, 32
     sample_average: 4
+
+    # Ancho de pulso del LED en microsegundos (afecta precisión y consumo)
+    # Valores válidos: 69, 118, 215, 411
     pulse_width: 411
+
+    # Potencia del LED (0x00=mínimo, 0xFF=máximo)
+    # Subir si la señal es débil, bajar si hay saturación
     power_level: 0x2F
+
     algorithm:
+      # Ventana de tiempo en segundos para calcular umbrales adaptativos
+      # Mayor ventana = más estable pero más lento en adaptarse
       adaptive_window: 2.0
-      thresh_high: 0.60   # 0.75
-      thresh_low: 0.45  # 0.60
+
+      # Umbral alto de histéresis (fracción de la amplitud de onda)
+      # Dispara la detección de latido cuando la señal supera este %
+      # Subir si detecta latidos falsos, bajar si pierde latidos
+      thresh_high: 0.60
+
+      # Umbral bajo de histéresis (fracción de la amplitud de onda)
+      # Resetea la detección cuando la señal baja de este %
+      # Debe ser menor que thresh_high
+      thresh_low: 0.45
+
+      # Tiempo mínimo entre latidos en segundos (anti-rebote)
+      # Equivale a frecuencia máxima = 60/min_interval bpm
+      # 0.35s = máximo 171 bpm
       min_interval: 0.35
+
     calibration:
-      spo2_coeff_a: 105  #136
-      spo2_coeff_b: 25  
+      # Calibración SpO2 por regresión lineal: SpO2 = A - (B * ratio)
+      # Ajustar comparando con oxímetro de referencia certificado
+      # Aumentar A si el sensor lee por debajo del real
+      # Disminuir A si el sensor lee por encima del real
+      spo2_coeff_a: 105
+      spo2_coeff_b: 25
 
-
+  # ── Baumanómetro MPX5050 + ADS1115 ───────────────────────
   pressure:
     enabled: true
+
+    # Pin GPIO de la bomba de aire (BCM)
     pin_pump: 17
+
+    # Pin GPIO de la válvula de escape (BCM)
     pin_valve: 27
+
+    # Bus I²C del ADS1115
     i2c_channel: 1
+
+    # Canal del ADS1115 donde está conectado el MPX5050 (0-3)
     adc_channel: 0
-    adc_gain: 0.6666666666666666 
+
+    # Ganancia del ADS1115 — define el rango de voltaje medido
+    # 2/3 = ±6.144V (cubre el rango completo del MPX5050: 0-4.7V)
+    # No cambiar sin revisar el datasheet del MPX5050
+    adc_gain: 0.6666666666666666
+
+    # Velocidad de muestreo del ADS1115 en muestras/segundo
+    # Valores válidos: 8, 16, 32, 64, 128, 250, 475, 860
     adc_data_rate: 860
+
+    # Offset de corrección en mmHg para el sensor de presión
+    # Ajustar si hay error sistemático en todas las lecturas
     offset_mmhg: 3.8
+
+    # Presión objetivo de inflado en mmHg
+    # Debe ser mayor que la presión sistólica esperada (~20-30 mmHg más)
+    # Bajar si el paciente se queja de molestia, no bajar de 150
     meta_inflate_mmhg: 165.0
+
+    # Presión a la que se detiene la grabación de señal en mmHg
+    # Debe ser menor que la presión diastólica esperada
     meta_stop_mmhg: 30.0
+
     algorithm:
+      # Distancia mínima entre picos detectados (en segundos)
+      # Equivale a frecuencia máxima detectable = 1/peak_distance Hz
+      # 0.4s = máximo 150 bpm de pulso en la señal de presión
       peak_distance: 0.4
+
+      # Ratio oscilométrico para detectar presión sistólica
+      # La sistólica se detecta donde la amplitud cae a este % del máximo
+      # en la fase de subida de presión
+      # Bajar si la sistólica sale muy alta, subir si sale muy baja
       ratio_sys: 0.40
+
+      # Ratio oscilométrico para detectar presión diastólica
+      # La diastólica se detecta donde la amplitud cae a este % del máximo
+      # en la fase de bajada de presión
+      # Bajar si la diastólica sale muy alta, subir si sale muy baja
       ratio_dia: 0.60
+
+      # Intervalo mínimo entre latidos en segundos (anti-ruido)
+      # 0.35s = máximo 171 bpm
       hr_interval_min: 0.35
+
+      # Intervalo máximo entre latidos en segundos
+      # 1.43s = mínimo 42 bpm
       hr_interval_max: 1.43
+
     calibration:
+      # Calibración por regresión lineal: real = crudo * escala + offset
+      # Obtener ejecutando: python -m tools.calibrate_pressure
+      # con al menos 10 mediciones comparadas contra baumanómetro certificado
+
+      # Coeficientes para presión sistólica
       sys_scale: 0.857
       sys_offset: -6.8
+
+      # Coeficientes para presión diastólica
       dia_scale: 0.614
       dia_offset: 37.8
+
+# ─────────────────────────────────────────────────────────────
+# Comunicación MQTT
+# ─────────────────────────────────────────────────────────────
+mqtt:
+  # IP o hostname del broker Mosquitto
+  # Cambiar a la IP del servidor externo cuando se migre
+  broker_host: localhost
+
+  # Puerto estándar MQTT (cambiar solo si el broker usa otro puerto)
+  broker_port: 1883
+
+  # Identificador único de este dispositivo
+  # Cambiar si hay múltiples Pi en la misma red (pi5-001, pi5-002...)
+  # Define el topic: biomed/{device_id}/sensor
+  device_id: pi5-001
+
+# ─────────────────────────────────────────────────────────────
+# Almacenamiento local
+# ─────────────────────────────────────────────────────────────
+storage:
+  # Segundos que debe haber una persona detectada de forma continua
+  # antes de guardar la temperatura (evita guardar lecturas instantáneas)
+  temp_stable_seconds: 10
+
+  # Tiempo mínimo en segundos entre guardados de temperatura
+  # Evita llenar la base de datos con lecturas repetidas
+  temp_min_interval_seconds: 60
+
+  # Cada cuántos segundos se guarda una lectura de SpO2 y pulso
+  # Solo guarda si hay dedo en el sensor y lectura válida
+  spo2_save_interval_seconds: 90

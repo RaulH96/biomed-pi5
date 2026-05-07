@@ -1,5 +1,3 @@
-# drivers/pump_valve.py
-# Control GPIO de bomba y valvula del baumanometro
 import lgpio
 import time
 
@@ -9,8 +7,16 @@ class PumpValveDriver:
         self._pin_pump  = pin_pump
         self._pin_valve = pin_valve
         self._h = lgpio.gpiochip_open(0)
-        lgpio.gpio_claim_output(self._h, pin_pump,  0)
-        lgpio.gpio_claim_output(self._h, pin_valve, 0)
+        try:
+            lgpio.gpio_claim_output(self._h, pin_pump,  0)
+        except lgpio.error:
+            lgpio.gpio_free(self._h, pin_pump)
+            lgpio.gpio_claim_output(self._h, pin_pump, 0)
+        try:
+            lgpio.gpio_claim_output(self._h, pin_valve, 0)
+        except lgpio.error:
+            lgpio.gpio_free(self._h, pin_valve)
+            lgpio.gpio_claim_output(self._h, pin_valve, 0)
 
     def pump_on(self):
         lgpio.gpio_write(self._h, self._pin_pump, 1)
@@ -40,4 +46,6 @@ class PumpValveDriver:
     def close(self):
         self.all_off()
         time.sleep(0.1)
+        lgpio.gpio_free(self._h, self._pin_pump)
+        lgpio.gpio_free(self._h, self._pin_valve)
         lgpio.gpiochip_close(self._h)
