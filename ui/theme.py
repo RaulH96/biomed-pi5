@@ -1,3 +1,5 @@
+#/home/harlink/biomed-pi5/ui/theme.py
+
 from PyQt6.QtGui import QColor, QFont
 
 # ── Paleta de colores ─────────────────────────────────────────

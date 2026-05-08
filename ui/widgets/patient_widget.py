@@ -251,13 +251,32 @@ class PatientWidget(QWidget):
         scroll.setWidget(content)
         root.addWidget(scroll, stretch=1)
 
-        # ── Botón guardar ────────────────────────────────────
+        # ── Botones: Cerrar Sesión + Guardar ─────────────────
+        buttons_row = QHBoxLayout()
+        buttons_row.setSpacing(10)
+        
+        # Botón cerrar sesión
+        self.btn_close_session = QPushButton("🔒  Cerrar Sesión")
+        self.btn_close_session.setFont(Fonts.get(13, QFont.Weight.Medium))
+        self.btn_close_session.setFixedHeight(44)
+        self.btn_close_session.clicked.connect(self._close_session)
+        self.btn_close_session.setStyleSheet(
+            f"background:{Colors.CORAL_600}; color:#fff; border-radius:10px; border:none;"
+        )
+        
+        # Botón guardar
         self.btn_save = QPushButton("💾  Guardar datos del paciente")
         self.btn_save.setFont(Fonts.get(13, QFont.Weight.Medium))
         self.btn_save.setFixedHeight(44)
         self.btn_save.clicked.connect(self._save)
-        root.addWidget(self.btn_save)
-
+        self.btn_save.setStyleSheet(
+            f"background:{Colors.TEAL_500}; color:#fff; border-radius:10px; border:none;"
+        )
+        
+        buttons_row.addWidget(self.btn_close_session)
+        buttons_row.addWidget(self.btn_save)
+        root.addLayout(buttons_row)
+        
         self._refresh_shadows()
 
     def _inline_field(self, label: str, placeholder: str) -> QWidget:
@@ -321,6 +340,23 @@ class PatientWidget(QWidget):
         self.btn_save.setText("✓  Guardado")
         QTimer = __import__("PyQt6.QtCore", fromlist=["QTimer"]).QTimer
         QTimer.singleShot(2000, lambda: self.btn_save.setText("💾  Guardar datos del paciente"))
+
+    def _close_session(self):
+        """Cerrar sesión actual"""
+        import storage
+        if storage.session_manager and storage.session_manager.has_session():
+            storage.session_manager.end_session()
+            self.btn_close_session.setText("✓  Sesión Cerrada")
+            # Toast si el padre tiene el método
+            if hasattr(self.parent(), 'toast'):
+                self.parent().toast("✓ Sesión cerrada exitosamente", 3000, Colors.BLUE_400)
+            # Restaurar texto del botón después de 2s
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(2000, lambda: self.btn_close_session.setText("🔒  Cerrar Sesión"))
+        else:
+            if hasattr(self.parent(), 'toast'):
+                self.parent().toast("⚠ No hay sesión activa", 2000, Colors.YELLOW_400)
+
 
     def _refresh_shadows(self):
         for w in self._shadow_widgets:

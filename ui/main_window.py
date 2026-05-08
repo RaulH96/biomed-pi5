@@ -1,4 +1,5 @@
 # ui/main_window.py
+import storage
 import yaml
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -401,10 +402,20 @@ class MainWindow(QMainWindow):
         self._pressure_monitor = None
 
     def closeEvent(self, e):
+        """Cerrar sesión y servicios al cerrar ventana"""
+        import storage
+        
+        # Cerrar sesión primero
+        if storage.session_manager and storage.session_manager.has_session():
+            storage.session_manager.end_session()
+            print("[MainWindow] Sesión cerrada")
+        
+        # Apagar sensores
         if hasattr(self, "_sm") and self._sm:
             self._sm.shutdown()
         if self._pressure_monitor:
             self._pressure_monitor.shutdown()
         if self._spo2_monitor:
             self._spo2_monitor.shutdown()
+        
         super().closeEvent(e)

@@ -67,11 +67,26 @@ class SessionManager:
     def end_session(self):
         with self._lock:
             if self._session_id:
+                ended_at = time.time()
                 close_session(self._session_id)
+                
+                # Publicar cierre a MQTT
+                try:
+                    import json
+                    topic = f"biomed/pi5-001/session/end"
+                    payload = {
+                        "session_id": self._session_id,
+                        "ended_at": ended_at
+                    }
+                    self.mqtt.publish(topic, payload)
+                    print(f"[MQTT] Sesión {self._session_id} cerrada publicada")
+                except Exception as e:
+                    print(f"[MQTT] Error publicando cierre: {e}")
+                
                 print(f"[Session] Cerrada id={self._session_id}")
                 self._session_id = None
                 self._patient_id = None
-
+    
     def _ensure_session(self) -> bool:
         """
         Retorna True si hay sesion activa.

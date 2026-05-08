@@ -4,6 +4,9 @@
 SESSION="biomed"
 PROJECT_DIR="/home/harlink/biomed-pi5"
 
+# Matar sesión anterior si existe
+tmux kill-session -t $SESSION 2>/dev/null
+
 # Crear sesión tmux
 tmux new-session -d -s $SESSION -n "edge" -c "$PROJECT_DIR"
 
@@ -24,10 +27,24 @@ tmux send-keys -t $SESSION:fastapi "source ../../.venv/bin/activate && uvicorn m
 
 # Ventana 5 - PWA
 tmux new-window -t $SESSION -n "pwa" -c "$PROJECT_DIR/services/webapp"
-tmux send-keys -t $SESSION:pwa "node start-https.mjs" C-m
+tmux send-keys -t $SESSION:pwa "npm run dev" C-m
 
 # Volver a la primera ventana
 tmux select-window -t $SESSION:edge
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✓ Sesión tmux 'biomed' creada"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "Para conectarte:"
+echo "  tmux attach -t biomed"
+echo ""
+echo "Navegación tmux:"
+echo "  Ctrl+B luego 0-4  → cambiar ventana"
+echo "  Ctrl+B luego d    → detach (deja corriendo)"
+echo ""
+echo "Para detener todo:"
+echo "  tmux kill-session -t biomed"
 
 # Adjuntar a la sesión
 tmux attach-session -t $SESSION

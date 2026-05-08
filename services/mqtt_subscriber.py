@@ -30,6 +30,7 @@ TOPICS = [
     f"biomed/{DEVICE_ID}/temp",
     f"biomed/{DEVICE_ID}/spo2",
     f"biomed/{DEVICE_ID}/bp",
+    f"biomed/{DEVICE_ID}/session/end", 
 ]
 
 def init_storage_db():
@@ -214,6 +215,12 @@ def on_message(client, userdata, msg):
             else:
                 logger.info(f"  ✓ BP: {sys_mmhg:.0f}/{dia_mmhg:.0f} mmHg ({payload.get('category')})")
         
+        elif 'session/end' in topic:
+            # Cerrar sesión en storage.db
+            c.execute('UPDATE sessions SET ended_at = ? WHERE id = ?',
+                     (int(payload['ended_at']), payload['session_id']))
+            logger.info(f"  ✓ Sesión {payload['session_id']} cerrada")
+            
         conn.commit()
         conn.close()
         
