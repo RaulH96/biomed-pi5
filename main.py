@@ -2,6 +2,7 @@ import sys
 import atexit
 from pathlib import Path
 from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
 from ui.main_window import MainWindow
 
 # Inicializar storage ANTES de crear ventana
@@ -25,5 +26,8 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
     win = MainWindow()
-    win.show()
+    
+    # Maximizar (pantalla completa pero respetando barra de tareas)
+    win.showMaximized()
+    
     sys.exit(app.exec())
