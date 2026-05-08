@@ -20,7 +20,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-DB_PATH      = Path("../../data/biomed.db")
+DB_PATH      = Path("../../data/storage.db")
 PATIENT_FILE = Path("../../config/patient.json")
 
 
