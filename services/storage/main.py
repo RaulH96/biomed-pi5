@@ -300,9 +300,9 @@ def admin_status():
     total_temp     = conn.execute("SELECT COUNT(*) FROM temp_measurements").fetchone()[0]
     total_spo2     = conn.execute("SELECT COUNT(*) FROM spo2_measurements").fetchone()[0]
     total_bp       = conn.execute("SELECT COUNT(*) FROM bp_measurements").fetchone()[0]
-    unsynced_bp    = conn.execute("SELECT COUNT(*) FROM bp_measurements WHERE synced=0").fetchone()[0]
-    unsynced_spo2  = conn.execute("SELECT COUNT(*) FROM spo2_measurements WHERE synced=0").fetchone()[0]
-    unsynced_temp  = conn.execute("SELECT COUNT(*) FROM temp_measurements WHERE synced=0").fetchone()[0]
+    #unsynced_bp    = conn.execute("SELECT COUNT(*) FROM bp_measurements WHERE synced=0").fetchone()[0]
+    #unsynced_spo2  = conn.execute("SELECT COUNT(*) FROM spo2_measurements WHERE synced=0").fetchone()[0]
+    #unsynced_temp  = conn.execute("SELECT COUNT(*) FROM temp_measurements WHERE synced=0").fetchone()[0]
     conn.close()
 
     return {
