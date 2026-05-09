@@ -7,29 +7,26 @@ echo "=========================================="
 echo "   Biomed Pi5 - MODO PRODUCCIÓN"
 echo "=========================================="
 
-# Terminales 1-4 igual que antes
+# Terminal 1 - Edge UI
 lxterminal --title="Biomed - Edge UI" \
   --working-directory="$PROJECT_DIR" \
   -e "bash -c 'source .venv/bin/activate && python main.py; exec bash'" &
 sleep 2
 
+# Terminal 2 - MQTT Subscriber
 lxterminal --title="Biomed - MQTT Subscriber" \
   --working-directory="$PROJECT_DIR/services" \
   -e "bash -c 'source ../.venv/bin/activate && python mqtt_subscriber.py; exec bash'" &
 sleep 2
 
-lxterminal --title="Biomed - Raw Sync" \
-  --working-directory="$PROJECT_DIR/services" \
-  -e "bash -c 'source ../.venv/bin/activate && python raw_sync_service.py; exec bash'" &
-sleep 2
-
+# Terminal 3 - FastAPI
 lxterminal --title="Biomed - FastAPI" \
   --working-directory="$PROJECT_DIR/services/storage" \
   -e "bash -c 'source ../../.venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload; exec bash'" &
 sleep 2
 
-# Terminal 5 - PWA en PRODUCCIÓN
-echo "[5/5] Iniciando PWA (Producción - HTTPS)..."
+# Terminal 4 - PWA en PRODUCCIÓN
+echo "[4/4] Iniciando PWA (Producción - HTTPS)..."
 lxterminal --title="Biomed - PWA (HTTPS)" \
   --working-directory="$PROJECT_DIR/services/webapp" \
   -e "bash -c 'node start-https.mjs; exec bash'" &

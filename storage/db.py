@@ -1,6 +1,7 @@
 import sqlite3, json, time
 from pathlib import Path
 
+
 DB_PATH = Path("data/biomed.db")
 
 SCHEMA = """
@@ -117,14 +118,14 @@ def save_bp(session_id: int, result: dict) -> int:
         conn.execute(
             """INSERT INTO bp_raw
                (bp_measurement_id, fs_hz,
-                pressure_json, time_json, osc_json, peaks_json, env_json)
-               VALUES (?,?,?,?,?,?,?)""",
+                pressure_json, time_json, osc_json, peaks_json, env_json, synced)
+               VALUES (?,?,?,?,?,?,?,?)""",
             (bp_id, result.get("fs", 0.0),
              json.dumps(result["p_arr"].tolist()),
              json.dumps(result["t_arr"].tolist()),
              json.dumps(result["osc"].tolist()),
              json.dumps(result["picos"].tolist()),
-             json.dumps(result["env"].tolist()))
+             json.dumps(result["env"].tolist()), 1)
         )
         conn.commit()
         return bp_id
@@ -145,12 +146,12 @@ def save_spo2(session_id: int, spo2: float, hr: int,
         conn.execute(
             """INSERT INTO spo2_raw
                (spo2_measurement_id, ir_json, red_json,
-                thresh_high_json, thresh_low_json, sample_rate_hz)
-               VALUES (?,?,?,?,?,?)""",
+                thresh_high_json, thresh_low_json, sample_rate_hz, synced)
+               VALUES (?,?,?,?,?,?,?)""",
             (spo2_id,
              json.dumps(list(ir_buf)),   json.dumps(list(red_buf)),
              json.dumps(list(thresh_high)), json.dumps(list(thresh_low)),
-             sample_rate)
+             sample_rate, 1)  
         )
         conn.commit()
         return spo2_id
@@ -171,21 +172,3 @@ def save_temp(session_id: int, temp_c: float, state: str,
     mid = cur.lastrowid
     conn.close()
     return mid
-
-def get_unsynced(table: str, limit: int = 50) -> list[dict]:
-    conn = get_conn()
-    rows = conn.execute(
-        f"SELECT * FROM {table} WHERE synced=0 ORDER BY id LIMIT ?", (limit,)
-    ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-def mark_synced(table: str, ids: list[int]):
-    if not ids:
-        return
-    conn = get_conn()
-    conn.execute(
-        f"UPDATE {table} SET synced=1 WHERE id IN ({','.join('?'*len(ids))})", ids
-    )
-    conn.commit()
-    conn.close()

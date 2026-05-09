@@ -1,342 +1,430 @@
-# Estructura del Proyecto biomed-pi5
+# 🏗️ BioMed Pi5 — Arquitectura Técnica
 
-Sistema IoT de monitoreo biomédico en Raspberry Pi 5 con sensores MLX90640 (temperatura), MAX30102 (SpO2), y MPX5050 (presión arterial).
+Documentación técnica completa del sistema de monitoreo biomédico IoT.
 
-## Arquitectura General
-┌─────────────────────────────────────────────────────────────────┐
-│                        RASPBERRY PI 5                            │
-│                                                                  │
-│  ┌────────────────────┐         ┌──────────────────────┐       │
-│  │   Edge (PyQt6)     │────────▶│  Mosquitto Broker    │       │
-│  │   - Lee sensores   │         │  localhost:1883      │       │
-│  │   - Guarda local   │         └──────────┬───────────┘       │
-│  │   - Publica MQTT   │                    │                    │
-│  └─────────┬──────────┘                    │                    │
-│            │                                │                    │
-│            ▼                                ▼                    │
-│     biomed.db ◀──────────────┐    ┌─────────────────┐          │
-│     (local)                   │    │ MQTT Subscriber │          │
-│                               │    │ + Raw Sync      │          │
-│                               │    └────────┬────────┘          │
-│                               │             │                    │
-│                               │             ▼                    │
-│                               │      storage.db                  │
-│                               │      (permanente)                │
-│                               │             │                    │
-│                               │             ▼                    │
-│  ┌────────────────────────────┼──────FastAPI────────┐          │
-│  │                            │    (puerto 8000)     │          │
-│  │  Datos procesados ◀────────┘                     │          │
-│  │  + señales raw                                    │          │
-│  └───────────────────────────────────────┬──────────┘          │
-│                                           │                      │
-└───────────────────────────────────────────┼──────────────────────┘
+---
+
+## 🎯 Visión General
+
+### Stack Tecnológico
+
+**Hardware:**
+- Raspberry Pi 5 (4GB RAM)
+- MLX90640ESF-BAB (Cámara térmica 24×32)
+- MAX30102 (SpO2 y frecuencia cardíaca)
+- MPX5050 + ADS1115 (Presión arterial oscilométrica)
+
+**Backend:**
+- Python 3.13 (Edge processing)
+- PyQt6 (Interfaz local)
+- FastAPI (REST API)
+- SQLite (Persistencia)
+- Mosquitto (MQTT Broker)
+
+**Frontend:**
+- Next.js 14 (PWA)
+- React 18 + TypeScript
+- TailwindCSS
+
+---
+
+## 🏛️ Arquitectura del Sistema
+
+### Diagrama de Componentes
+┌─────────────────────────────────────────────────────────────┐
+│                     RASPBERRY PI 5                          │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐  │
+│  │              Edge Processing (PyQt6)                 │  │
+│  │                                                      │  │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐    │  │
+│  │  │ MLX90640   │  │ MAX30102   │  │ MPX5050    │    │  │
+│  │  │ Thermal    │  │ SpO2/HR    │  │ BP         │    │  │
+│  │  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘    │  │
+│  │        │                │                │           │  │
+│  │        └────────────────┴────────────────┘           │  │
+│  │                         │                            │  │
+│  │                         ▼                            │  │
+│  │         ┌───────────────────────────────┐           │  │
+│  │         │   Processing Layer            │           │  │
+│  │         │   • temperature.py            │           │  │
+│  │         │   • spo2_monitor.py           │           │  │
+│  │         │   • pressure.py               │           │  │
+│  │         └───────────┬───────────────────┘           │  │
+│  │                     │                                │  │
+│  │                     ▼                                │  │
+│  │         ┌───────────────────────────────┐           │  │
+│  │         │   Session Manager             │           │  │
+│  │         │   • on_spo2_stable()          │           │  │
+│  │         │   • on_bp_result()            │           │  │
+│  │         │   • on_temp_reading()         │           │  │
+│  │         └───────────┬───────────────────┘           │  │
+│  │                     │                                │  │
+│  │                     │ guarda                         │  │
+│  │                     ▼                                │  │
+│  │         ┌───────────────────────────────┐           │  │
+│  │         │      biomed.db (local)        │           │  │
+│  │         │  • spo2_measurements          │           │  │
+│  │         │  • spo2_raw                   │           │  │
+│  │         │  • bp_measurements            │           │  │
+│  │         │  • bp_raw                     │           │  │
+│  │         │  • temp_measurements          │           │  │
+│  │         └───────────┬───────────────────┘           │  │
+│  │                     │                                │  │
+│  │                     │ lee y publica                  │  │
+│  │                     ▼                                │  │
+│  │         ┌───────────────────────────────┐           │  │
+│  │         │    MQTT Publisher             │           │  │
+│  │         │  • publish_spo2()             │           │  │
+│  │         │  • publish_bp()               │           │  │
+│  │         │  • publish_temp()             │           │  │
+│  │         └───────────┬───────────────────┘           │  │
+│  └─────────────────────┼──────────────────────────────┘  │
+│                        │                                  │
+│                        │ publica                          │
+│                        ▼                                  │
+│            ┌───────────────────────────┐                 │
+│            │   MQTT Broker             │                 │
+│            │   (Mosquitto)             │                 │
+│            │                           │                 │
+│            │   Topics:                 │                 │
+│            │   • biomed/pi5-001/temp   │                 │
+│            │   • biomed/pi5-001/spo2   │                 │
+│            │   • biomed/pi5-001/bp     │                 │
+│            │   • biomed/pi5-001/       │                 │
+│            │     session/end           │                 │
+│            └───────────┬───────────────┘                 │
+│                        │                                  │
+│                        │ subscribe                        │
+│                        ▼                                  │
+│            ┌───────────────────────────┐                 │
+│            │   MQTT Subscriber         │                 │
+│            │   • on_message()          │                 │
+│            │   • Replica a storage.db  │                 │
+│            └───────────┬───────────────┘                 │
+│                        │                                  │
+│                        │ escribe                          │
+│                        ▼                                  │
+│            ┌───────────────────────────┐                 │
+│            │   storage.db              │                 │
+│            │   (permanente)            │                 │
+│            │   • Mismas tablas que     │                 │
+│            │     biomed.db             │                 │
+│            └───────────┬───────────────┘                 │
+│                        │                                  │
+│                        │ lee                              │
+│                        ▼                                  │
+│            ┌───────────────────────────┐                 │
+│            │   FastAPI REST API        │                 │
+│            │   (puerto 8000)           │                 │
+│            │   • /sessions             │                 │
+│            │   • /measurements/*       │                 │
+│            │   • /raw/*                │                 │
+│            └───────────┬───────────────┘                 │
+└────────────────────────┼──────────────────────────────────┘
 │
+│ HTTP/HTTPS
 ▼
-┌──────────────────────────┐
-│   Next.js PWA (HTTPS)    │
-│   puerto 3000            │
-│   - 5 páginas            │
-│   - Instalable           │
-│   - Waveform viewer      │
-└──────────────────────────┘## Estructura de Directorios
-## Estructura de Directorios
-biomed-pi5/
-│
-├── config/                      # Configuración del sistema
-│   ├── settings.yaml            # Configuración sensores, MQTT, storage
-│   └── patient.json             # Datos del paciente actual
-│
-├── core/                        # Núcleo del sistema
-│   ├── logger.py                # Sistema de logging
-│   └── manager.py               # Orquestador principal
-│
-├── data/                        # Bases de datos SQLite
-│   ├── biomed.db                # DB local (Edge) - store-and-forward
-│   └── storage.db               # DB permanente (API/PWA)
-│
-├── drivers/                     # Drivers de hardware
-│   ├── mlx90640.py              # Sensor térmico MLX90640 (24×32 IR matrix)
-│   ├── max30102.py              # Sensor SpO2/HR MAX30102
-│   └── ads1115.py               # ADC para sensor de presión MPX5050
-│
-├── processing/                  # Algoritmos de procesamiento
-│   ├── temperature.py           # Procesamiento térmico
-│   │   ├── get_body_temperature()    # Extrae temp corporal P95
-│   │   ├── classify_temperature()    # Clasifica estado térmico
-│   │   └── get_scene_stats()         # Estadísticas de escena
-│   ├── spo2_monitor.py          # Monitor SpO2 en tiempo real
-│   │   ├── Filtrado AC/DC
-│   │   ├── Cálculo R-ratio
-│   │   ├── Detección de peaks
-│   │   └── Validación de señal
-│   └── bp_monitor.py            # Monitor presión arterial
-│       ├── Oscilometric method
-│       ├── Envelope detection
-│       ├── Peak analysis
-│       └── MAP/SYS/DIA calculation
-│
-├── storage/                     # Capa de persistencia
-│   ├── db.py                    # Operaciones SQLite base
-│   ├── session_manager.py       # Gestión de sesiones
-│   │   ├── Store-and-forward MQTT
-│   │   ├── Timers de guardado
-│   │   └── Validación de mediciones
-│   └── mqtt_publisher.py        # Publicador MQTT
-│       ├── Publica temp/spo2/bp
-│       ├── Incluye datos raw opcionales
-│       └── QoS=1 (at least once)
-│
-├── ui/                          # Interfaz PyQt6
-│   ├── main_window.py           # Ventana principal con tabs
-│   ├── colors.py                # Paleta de colores
-│   ├── components/              # Componentes reutilizables
-│   │   ├── toast.py             # Notificaciones toast
-│   │   ├── card.py              # Tarjetas de datos
-│   │   ├── badge.py             # Badges de estado
-│   │   └── dialog.py            # Diálogos (bienvenida, paciente)
-│   └── widgets/                 # Páginas/Widgets principales
-│       ├── thermal_widget2.py   # Tab temperatura (MLX90640)
-│       ├── spo2_widget2.py      # Tab SpO2 (MAX30102)
-│       ├── pressure_widget2.py  # Tab presión arterial
-│       └── patient_widget.py    # Tab datos del paciente
-│
-├── services/                    # Servicios backend
-│   ├── mqtt_subscriber.py       # Replica MQTT → storage.db
-│   │   ├── Escucha temp/spo2/bp
-│   │   ├── Soporta formato viejo y nuevo
-│   │   ├── Guarda datos procesados
-│   │   └── Guarda datos raw (señales)
-│   │
-│   ├── raw_sync_service.py      # Sincroniza raw con synced=0
-│   │   ├── Lee biomed.db cada 30s
-│   │   ├── Publica raw vía MQTT
-│   │   └── Marca synced=1 al publicar
-│   │
-│   ├── storage/                 # FastAPI REST API
-│   │   ├── main.py              # Servidor FastAPI
-│   │   ├── models.py            # Modelos Pydantic
-│   │   ├── crud.py              # Operaciones CRUD
-│   │   └── endpoints/           # Endpoints organizados
-│   │       ├── patient.py       # /patient/* (8 endpoints)
-│   │       ├── doctor.py        # /doctor/* (10 endpoints)
-│   │       └── admin.py         # /admin/* (6 endpoints)
-│   │
-│   └── webapp/                  # Next.js PWA
-│       ├── app/                 # App Router (Next.js 14)
-│       │   ├── page.tsx         # Inicio
-│       │   ├── layout.tsx       # Layout global
-│       │   └── globals.css      # Estilos globales
-│       ├── components/
-│       │   ├── Sidebar.tsx      # Navegación lateral
-│       │   ├── ThemeToggle.tsx  # Toggle claro/oscuro
-│       │   ├── WaveformViewer.tsx  # Viewer señales raw
-│       │   └── pages/           # Páginas principales
-│       │       ├── PageHome.tsx      # Inicio - resumen
-│       │       ├── PageMediciones.tsx # Historial mediciones
-│       │       ├── PagePaciente.tsx  # Info del paciente
-│       │       ├── PageDoctor.tsx    # Vista médico
-│       │       └── PageAjustes.tsx   # Configuración
-│       ├── lib/
-│       │   └── api.ts           # Cliente API FastAPI
-│       ├── public/
-│       │   ├── manifest.json    # PWA manifest
-│       │   └── icons/           # Iconos PWA
-│       ├── next.config.ts       # Config Next.js
-│       ├── start-https.mjs      # Servidor HTTPS dev
-│       ├── package.json
-│       └── tsconfig.json
-│
-├── tools/                       # Utilidades (futuro)
-│   └── dataset_collector.py    # Colector de datasets térmicos
-│
-├── tests/                       # Tests (futuro)
-│   ├── test_drivers.py
-│   ├── test_processing.py
-│   └── mocks/
-│
-├── main.py                      # Entry point Edge
-├── requirements.txt             # Dependencias Python
-├── STRUCTURE.md                 # Este archivo
-└── README.md                    # Documentación principal
-## Base de Datos
+┌────────────────────┐
+│   Next.js PWA      │
+│   (puerto 3000)    │
+│                    │
+│   Celular / PC     │
+└────────────────────┘
 
-### biomed.db (Edge - Local)
-```sql
-sessions                  -- Sesiones de monitoreo
-├── id (PK)
-├── patient_id
-├── started_at
-├── ended_at
-├── device_id
-└── synced               -- 0=pendiente, 1=sincronizado
+### Flujo de Datos Completo
 
-temp_measurements         -- Mediciones de temperatura
-├── id (PK)
-├── session_id (FK)
-├── ts
-├── temp_c
-├── state
-├── max_c, min_c, ambient_c
-└── synced
+Sensores físicos (MLX90640, MAX30102, MPX5050)
+↓
+Processing Layer (temperature.py, spo2_monitor.py, pressure.py)
+↓
+Session Manager (coordina guardado y publicación)
+↓
+biomed.db ← Guarda datos procesados + raw (synced=1)
+↓
+MQTT Publisher ← Lee de biomed.db y publica
+↓
+MQTT Broker ← Distribuye mensajes
+↓
+MQTT Subscriber ← Recibe mensajes
+↓
+storage.db ← Replica datos (permanente)
+↓
+FastAPI ← Lee SOLO de storage.db
+↓
+PWA ← Consume API vía HTTP/HTTPS
 
-spo2_measurements         -- Mediciones SpO2
-├── id (PK)
-├── session_id (FK)
-├── ts
-├── spo2_pct
-├── hr_bpm
-└── synced
 
-spo2_raw                  -- Señales raw SpO2
-├── id (PK)
-├── spo2_measurement_id (FK)
-├── ir_json              -- Buffer infrarrojo
-├── red_json             -- Buffer rojo
-├── thresh_high_json     -- Umbral alto
-├── thresh_low_json      -- Umbral bajo
-├── sample_rate_hz
-└── synced
+**Puntos clave:**
+- ✅ `biomed.db` → MQTT Publisher → MQTT Broker
+- ✅ `storage.db` → FastAPI (NO hay conexión con biomed.db)
+- ✅ Todo pasa por MQTT (no hay copia directa entre DBs)
 
-bp_measurements           -- Mediciones presión arterial
-├── id (PK)
-├── session_id (FK)
-├── ts
-├── sys_mmhg, dia_mmhg, map_mmhg
-├── hr_bpm
-├── category
-└── synced
+---
 
-bp_raw                    -- Señales raw presión
-├── id (PK)
-├── bp_measurement_id (FK)
-├── pressure_json        -- Señal de presión
-├── time_json            -- Timestamps
-├── osc_json             -- Oscilaciones
-├── peaks_json           -- Picos detectados
-├── env_json             -- Envolvente
-├── fs_hz                -- Sample rate
-└── synced
+## 🔄 Flujo de Datos Detallado
+
+### 1. Captura de Datos (Edge)
+
+```python
+# Ejemplo: SpO2
+monitor = SpO2Monitor()  # Lee MAX30102
+spo2, hr = monitor.spo2, monitor.bpm
+ir_buf = monitor.ir_buffer
+red_buf = monitor.red_buffer
+
+# SessionManager guarda en biomed.db
+spo2_id = save_spo2(
+    session_id, spo2, hr,
+    ir_buf, red_buf, thresh_high, thresh_low
+)
+
+# DESPUÉS publica a MQTT (lee de biomed.db o usa valores en memoria)
+mqtt.publish_spo2(
+    spo2_id=spo2_id,
+    spo2=spo2,
+    hr=hr,
+    session_id=session_id,
+    ir_buf=ir_buf,        # ← Raw incluido
+    red_buf=red_buf,      # ← Raw incluido
+    thresh_high=thresh_high,
+    thresh_low=thresh_low
+)
 ```
 
-### storage.db (API - Permanente)
-Mismo schema que `biomed.db` pero **synced siempre=1** (datos replicados vía MQTT).
+### 2. Payload MQTT
 
-## Flujo de Datos
+```json
+{
+  "device_id": "pi5-001",
+  "session_id": 42,
+  "spo2_id": 123,
+  "ts": 1715123456.789,
+  "spo2": 96.5,
+  "hr": 72,
+  "raw": {
+    "ir_json": "[100, 102, 104, ...]",
+    "red_json": "[200, 205, 210, ...]",
+    "thresh_high_json": "[110, 112, ...]",
+    "thresh_low_json": "[90, 88, ...]",
+    "sample_rate_hz": 25.0
+  }
+}
+```
 
-### 1. Temperatura (continuo)
-MLX90640 → thermal_widget2.py → SessionManager
-↓ cada 10s estable
-biomed.db temp_measurements
-↓ MQTT publish
-Mosquitto → Subscriber → storage.db
-### 2. SpO2 (cada 90s)
-MAX30102 → spo2_widget2.py → SpO2Monitor
-↓ validación señal
-SessionManager (timer 90s)
-↓ guarda procesado + raw
-biomed.db: spo2_measurements + spo2_raw
-↓ MQTT publish (incluye raw)
-Mosquitto → Subscriber → storage.db (ambas tablas)
-↓ si falla
-raw_sync_service reintenta cada 30s
-### 3. Presión Arterial (bajo demanda)
-MPX5050 + ADS1115 → pressure_widget2.py → BPMonitor
-↓ medición completa (~30s)
-SessionManager
-↓ guarda procesado + raw
-biomed.db: bp_measurements + bp_raw
-↓ MQTT publish (incluye raw)
-Mosquitto → Subscriber → storage.db (ambas tablas)
-↓ si falla
-raw_sync_service reintenta cada 30s
+### 3. Subscriber Replica
 
-## MQTT Topics
-biomed/pi5-001/temp
-Payload: {device_id, session_id, temp_id, ts, temp_c, state, max_c, min_c, ambient_c}
-biomed/pi5-001/spo2
-Payload: {device_id, session_id, spo2_id, ts, spo2, hr}
-Payload con raw: {..., raw: {ir_json, red_json, thresh_high_json, thresh_low_json, sample_rate_hz}}
-biomed/pi5-001/bp
-Payload: {device_id, session_id, bp_id, ts, sys, dia, map, hr, category}
-Payload con raw: {..., raw: {pressure_json, time_json, osc_json, peaks_json, env_json, fs_hz}}
-## FastAPI Endpoints (24 total)
+```python
+def on_message(client, userdata, msg):
+    payload = json.loads(msg.payload)
+    
+    # Guardar en storage.db
+    conn = sqlite3.connect('data/storage.db')
+    
+    # Medición procesada
+    conn.execute(
+        "INSERT INTO spo2_measurements (...) VALUES (...)",
+        (payload['spo2_id'], payload['spo2'], payload['hr'], ...)
+    )
+    
+    # Raw (si existe)
+    if 'raw' in payload:
+        conn.execute(
+            "INSERT INTO spo2_raw (...) VALUES (...)",
+            (payload['spo2_id'], payload['raw']['ir_json'], ...)
+        )
+    
+    conn.commit()
+```
 
-### Patient Endpoints (8)
-- GET `/patient/summary` - Resumen del paciente actual
-- GET `/patient/latest` - Últimas mediciones
-- GET `/patient/history` - Historial de mediciones
-- GET `/patient/sessions` - Sesiones del paciente
-- GET `/patient/vitals` - Signos vitales actuales
-- GET `/patient/trends` - Tendencias temporales
-- GET `/patient/alerts` - Alertas activas
-- GET `/patient/export` - Exportar datos
+### 4. FastAPI Lee storage.db
 
-### Doctor Endpoints (10)
-- GET `/doctor/patients` - Lista de pacientes
-- GET `/doctor/patient/{id}` - Detalles de paciente
-- GET `/doctor/sessions` - Todas las sesiones
-- GET `/doctor/sessions/{id}` - Detalles de sesión
-- GET `/doctor/sessions/{id}/waveform/spo2/{mid}` - Señal SpO2 raw
-- GET `/doctor/sessions/{id}/waveform/bp/{mid}` - Señal BP raw
-- GET `/doctor/analytics` - Analytics generales
-- GET `/doctor/reports` - Reportes médicos
-- POST `/doctor/notes` - Agregar nota médica
-- GET `/doctor/search` - Búsqueda avanzada
+```python
+@app.get("/measurements/spo2")
+def get_spo2(session_id: int):
+    # Lee SOLO de storage.db
+    conn = sqlite3.connect("data/storage.db")
+    rows = conn.execute(
+        "SELECT * FROM spo2_measurements WHERE session_id = ?",
+        (session_id,)
+    ).fetchall()
+    return [dict(r) for r in rows]
+```
 
-### Admin Endpoints (6)
-- GET `/admin/stats` - Estadísticas del sistema
-- GET `/admin/devices` - Dispositivos conectados
-- GET `/admin/logs` - Logs del sistema
-- POST `/admin/calibrate` - Calibrar sensores
-- GET `/admin/mqtt/status` - Estado MQTT
-- POST `/admin/sync` - Forzar sincronización
+---
 
-## PWA Páginas
+## 🗄️ Bases de Datos
 
-1. **Inicio** - Dashboard con últimas mediciones y alertas
-2. **Mediciones** - Historial completo con filtros
-3. **Paciente** - Información del paciente y configuración
-4. **Doctor** - Vista médico con waveforms y análisis
-5. **Ajustes** - Configuración de la aplicación
+### biomed.db (Local - Edge)
 
-## Tecnologías
+**Propósito:** 
+- Almacenamiento local rápido
+- Fuente para publicación MQTT
 
-### Hardware
-- Raspberry Pi 5 (headless)
-- MLX90640 (I2C 0x33) - Sensor térmico 24×32
-- MAX30102 (I2C 0x57) - Sensor SpO2/HR
-- ADS1115 (I2C 0x48) - ADC 16-bit
-- MPX5050 - Sensor presión 0-50 kPa
+**Escritura:** Edge (Session Manager)  
+**Lectura:** Edge + MQTT Publisher  
 
-### Software
-- Python 3.13
-- PyQt6 (UI Edge)
-- FastAPI (REST API)
-- Next.js 14 (PWA)
-- SQLite (persistencia)
-- Mosquitto (MQTT broker)
-- paho-mqtt (MQTT client)
-- Tailwind CSS (estilos PWA)
+### storage.db (Permanente - API)
 
-## Decisiones de Diseño
+**Propósito:**
+- Base de datos permanente
+- Fuente de verdad para API/PWA
 
-1. **Dos DBs separadas**: `biomed.db` (edge rápido) vs `storage.db` (API/PWA)
-2. **MQTT store-and-forward**: Datos procesados se reintentan si falla publicación
-3. **Raw sync service**: Servicio separado para señales raw (no bloquea Edge)
-4. **QoS=1**: Garantiza entrega "al menos una vez" (puede duplicar)
-5. **Dynamic thresholding**: Temperatura relativa a ambiente (no rangos fijos)
-6. **Calibration offset**: 0.7°C para temperatura frontal vs oral
-7. **mDNS**: `harlink.local` para portabilidad entre redes
-8. **HTTPS dev**: Certificado local para PWA instalable
+**Escritura:** MQTT Subscriber  
+**Lectura:** FastAPI  
 
-## Roadmap Futuro
+**IMPORTANTE:** No hay conexión directa entre estas DBs.
 
-- [ ] Systemd services para arranque automático
-- [ ] Dataset térmico para ML (detección facial opcional)
-- [ ] Export a CSV/PDF
-- [ ] Gráficas interactivas con zoom/pan
-- [ ] Nginx reverse proxy
-- [ ] Modo producción Next.js
-- [ ] Alerts en tiempo real (websockets)
-- [ ] Multi-paciente en PWA
+---
+
+## 📡 MQTT Architecture
+
+### Topics
+biomed/pi5-001/temp         ← Temperatura corporal
+biomed/pi5-001/spo2         ← SpO2 + HR + raw (IR, Red, umbrales)
+biomed/pi5-001/bp           ← Presión arterial + raw (señales completas)
+biomed/pi5-001/session/end  ← Cierre de sesión
+
+### Características
+
+- **QoS 1:** Garantía de entrega (al menos una vez)
+- **Payload JSON:** Datos procesados + raw en un solo mensaje
+- **Store-and-forward:** Si MQTT falla, queda en biomed.db para reintentar
+- **Sin duplicados:** Una publicación por medición
+
+---
+
+## ⚙️ Servicios Systemd
+
+### 4 Servicios Activos
+
+| Servicio | Función | Puerto |
+|----------|---------|--------|
+| biomed-edge | Edge UI + lectura sensores | Display |
+| biomed-mqtt-subscriber | Replica MQTT → storage.db | - |
+| biomed-fastapi | API REST | 8000 |
+| biomed-pwa | PWA producción HTTPS | 3000 |
+
+### Gestión con Script Helper
+
+```bash
+# Modo interactivo (menú visual)
+./biomed-control.sh
+
+# Comandos directos
+./biomed-control.sh start
+./biomed-control.sh enable
+./biomed-control.sh status
+./biomed-control.sh logs edge
+```
+
+---
+
+## 🧮 Algoritmos de Procesamiento
+
+### Temperatura (MLX90640)
+
+**Detección dinámica de persona:**
+```python
+# Umbral relativo al ambiente
+ambient = np.percentile(frame, 10)
+threshold = ambient + 5.0  # Margen configurable
+
+# Detectar regiones calientes
+mask = frame > threshold
+if mask.any():
+    # P95 de la región detectada
+    temp_body = np.percentile(frame[mask], 95)
+```
+
+### SpO2 (MAX30102)
+
+**Procesamiento de señal:**
+```python
+# Filtro pasa-banda (0.5-5 Hz)
+ir_filtered = bandpass_filter(ir_raw, fs=25)
+
+# Detección de picos
+peaks = find_peaks(ir_filtered, distance=fs*0.4)
+hr = 60 / np.mean(np.diff(peaks) / fs)
+
+# Cálculo SpO2
+R = (ac_red/dc_red) / (ac_ir/dc_ir)
+spo2 = 110 - 25*R  # Fórmula empírica
+```
+
+### Presión Arterial (Oscilométrico)
+
+**Eliminación de transitorio:**
+```python
+# 1. Encontrar pico máximo de presión (fin de inflado)
+idx_max_presion = np.argmax(p_picos)
+
+# 2. Descartar primeros 3 picos (zona transitorio)
+idx_inicio_valido = idx_max_presion + 3
+picos_validos = picos[idx_inicio_valido:]
+p_valida = p_picos[idx_inicio_valido:]
+
+# 3. Calcular envolvente sobre zona limpia
+envolvente = savgol_filter(amplitudes_validas)
+
+# 4. MAP = máximo de envolvente
+idx_map = np.argmax(envolvente)
+map_mmhg = p_valida[idx_map]
+
+# 5. SYS y DIA por ratios
+sys_mmhg = calcular_por_ratio(envolvente, 0.55, hacia_arriba)
+dia_mmhg = calcular_por_ratio(envolvente, 0.75, hacia_abajo)
+```
+
+---
+
+## 🌐 API REST
+
+**Base URL:** `http://harlink.local:8000`
+
+### Endpoints Principales
+GET /health
+GET /sessions
+GET /sessions/{session_id}
+GET /measurements/temp?session_id={id}
+GET /measurements/spo2?session_id={id}
+GET /measurements/bp?session_id={id}
+GET /raw/spo2/{measurement_id}
+GET /raw/bp/{measurement_id}
+GET /patient/summary
+
+### Ejemplo de Respuesta
+
+```json
+{
+  "id": 123,
+  "session_id": 42,
+  "ts": 1715123456.789,
+  "spo2_pct": 96.5,
+  "hr_bpm": 72
+}
+```
+
+---
+
+## 💻 PWA Frontend
+
+**Stack:**
+- Next.js 14 (App Router)
+- React 18 + TypeScript
+- TailwindCSS
+- Recharts (gráficas)
+- Canvas (señales raw)
+
+**Características:**
+- Instalable en celular/PC
+- Modo offline (Service Worker)
+- HTTPS (self-signed cert)
+- Actualización en tiempo real
+
+---
+
+**Versión:** 4.0  
+**Última actualización:** Mayo 2026  
+**Autor:** Luis Raul (harlink)

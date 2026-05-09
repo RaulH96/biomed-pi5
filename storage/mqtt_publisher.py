@@ -61,7 +61,7 @@ class MQTTPublisher:
         self.publish(TOPIC_SPO2, payload)
     
     def publish_bp(self, bp_id: int, result: dict, session_id: int):
-        """Publica BP con datos raw si están en result"""
+        """Publica BP con datos raw"""
         payload = {
             "device_id": DEVICE_ID,
             "session_id": session_id,
@@ -75,17 +75,20 @@ class MQTTPublisher:
         }
         
         # Agregar raw si está disponible en result
-        if "pressure" in result and "time" in result:
+        if "p_arr" in result and "t_arr" in result:
             payload["raw"] = {
-                "pressure_json": json.dumps(result.get("pressure", [])),
-                "time_json": json.dumps(result.get("time", [])),
-                "osc_json": json.dumps(result.get("oscillations", [])),
-                "peaks_json": json.dumps(result.get("peaks", [])),
-                "env_json": json.dumps(result.get("envelope", [])),
+                "pressure_json": json.dumps(result["p_arr"].tolist()),
+                "time_json": json.dumps(result["t_arr"].tolist()),
+                "osc_json": json.dumps(result["osc"].tolist()),
+                "peaks_json": json.dumps(result["picos"].tolist()),
+                "env_json": json.dumps(result["env"].tolist()),
                 "fs_hz": result.get("fs", 100.0)
             }
         
-        self.publish(TOPIC_BP, payload)
+        topic = f"biomed/{DEVICE_ID}/bp"
+        self._client.publish(topic, json.dumps(payload), qos=1)
+        
+        #self.publish(TOPIC_BP, payload)
     
     def publish_temp(self, temp_id: int, temp_c: float, state: str, session_id: int):
         self.publish(TOPIC_TEMP, {

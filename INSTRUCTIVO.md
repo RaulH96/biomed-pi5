@@ -6,21 +6,66 @@ Sistema IoT de monitoreo biomédico con arquitectura MQTT para replicación de d
 
 ## 🎯 Inicio Rápido
 
-### Opción 1: Script Helper (Recomendado)
+### Opción 1: Script Helper Interactivo (Recomendado)
 
 ```bash
 cd /home/harlink/biomed-pi5
-./biomed-control.sh start
+./biomed-control.sh
+Se abrirá un menú interactivo con todas las opciones:
+🩺 Biomed Pi5 - Control de Servicios
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[1] ▶  Iniciar todos los servicios
+[2] ◼  Detener todos los servicios
+[3] ⟳  Reiniciar todos los servicios
+[4] ℹ  Ver estado de servicios[5] ✓  Habilitar inicio automático (boot)
+[6] ✗  Deshabilitar inicio automático
+[7] ?  Verificar configuración de arranque[8] 📋 Ver logs en tiempo real
+[9] 🔧 Reinstalar servicios systemd
+[10] 🧹 Limpiar logs antiguos[0] Salir
+bashcat > /home/harlink/biomed-pi5/INSTRUCTIVO.md << 'EOFINSTRUCT'
+# 🩺 BioMed Pi5 — Guía de Uso Rápido
+
+Sistema IoT de monitoreo biomédico con arquitectura MQTT para replicación de datos en tiempo real.
+
+---
+
+## 🎯 Inicio Rápido
+
+### Opción 1: Script Helper Interactivo (Recomendado)
+
+```bash
+cd /home/harlink/biomed-pi5
+./biomed-control.sh
 ```
 
-Esto inicia los 5 servicios:
-- ✅ Edge UI (PyQt6)
-- ✅ MQTT Subscriber
-- ✅ Raw Sync Service
-- ✅ FastAPI (puerto 8000)
-- ✅ PWA Producción HTTPS (puerto 3000)
+Se abrirá un menú interactivo con todas las opciones:
+🩺 Biomed Pi5 - Control de Servicios
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[1] ▶  Iniciar todos los servicios
+[2] ◼  Detener todos los servicios
+[3] ⟳  Reiniciar todos los servicios
+[4] ℹ  Ver estado de servicios
+[5] ✓  Habilitar inicio automático (boot)
+[6] ✗  Deshabilitar inicio automático
+[7] ?  Verificar configuración de arranque
+[8] 📋 Ver logs en tiempo real
+[9] 🔧 Reinstalar servicios systemd
+[10] 🧹 Limpiar logs antiguos
+[0] Salir
 
-### Opción 2: Íconos del Escritorio
+### Opción 2: Comandos Directos
+
+```bash
+# Iniciar servicios
+./biomed-control.sh start
+
+# Habilitar auto-arranque
+./biomed-control.sh enable
+
+# Ver estado
+./biomed-control.sh status
+```
+
+### Opción 3: Íconos del Escritorio
 
 **Doble click en:**
 - 💚 **Biomed Pi5 (DESARROLLO)** → Modo dev con hot reload
@@ -32,7 +77,21 @@ Esto inicia los 5 servicios:
 
 Herramienta todo-en-uno para gestionar los servicios del sistema.
 
-### Comandos Principales
+### Modo Interactivo (Sin Argumentos)
+
+```bash
+./biomed-control.sh
+```
+
+Abre un menú visual donde puedes:
+- Iniciar/detener/reiniciar servicios
+- Habilitar/deshabilitar auto-arranque
+- Ver logs en tiempo real
+- Reinstalar servicios si algo falla
+
+### Modo Comando (Con Argumentos)
+
+Útil para scripts o uso rápido desde terminal:
 
 ```bash
 # Iniciar todos los servicios
@@ -69,20 +128,14 @@ Herramienta todo-en-uno para gestionar los servicios del sistema.
 
 **Ver logs en tiempo real:**
 ```bash
-# Logs de Edge UI
+# Modo interactivo: opción [8] y elige el servicio
+./biomed-control.sh
+
+# Modo comando directo:
 ./biomed-control.sh logs edge
-
-# Logs de MQTT Subscriber
 ./biomed-control.sh logs mqtt-subscriber
-
-# Logs de FastAPI
 ./biomed-control.sh logs fastapi
-
-# Logs de PWA
 ./biomed-control.sh logs pwa
-
-# Logs de Raw Sync
-./biomed-control.sh logs raw-sync
 ```
 
 **Reinstalar servicios systemd** (si algo crashea):
@@ -95,29 +148,31 @@ Herramienta todo-en-uno para gestionar los servicios del sistema.
 ./biomed-control.sh clean
 ```
 
-**Ver ayuda completa:**
-```bash
-./biomed-control.sh help
-```
-
 ---
 
 ## 🏗️ Servicios del Sistema
 
-El sistema está compuesto por 5 servicios independientes gestionados por systemd:
+El sistema está compuesto por 4 servicios independientes gestionados por systemd:
 
 | Servicio | Descripción | Puerto |
 |----------|-------------|--------|
 | **biomed-edge** | Interfaz PyQt6, lee sensores físicos | Display |
 | **biomed-mqtt-subscriber** | Replica datos procesados → storage.db | - |
-| **biomed-raw-sync** | Sincroniza señales raw cada 30s | - |
 | **biomed-fastapi** | API REST para PWA | 8000 |
 | **biomed-pwa** | PWA modo producción (HTTPS) | 3000 |
 
 ### Dependencias entre servicios
 Edge → MQTT Broker → Subscriber → storage.db → FastAPI → PWA
-↓
-Raw Sync → storage.db
+
+**Flujo de datos:**
+1. Edge lee sensores físicos (MLX90640, MAX30102, MPX5050)
+2. Edge guarda en `biomed.db` local
+3. Edge publica a MQTT con datos procesados + señales raw
+4. Subscriber recibe vía MQTT
+5. Subscriber guarda en `storage.db` permanente
+6. FastAPI expone `storage.db` vía REST
+7. PWA consume FastAPI y muestra al usuario
+
 ---
 
 ## 📱 Acceso desde Otros Dispositivos
@@ -155,7 +210,8 @@ Raw Sync → storage.db
 
 ```bash
 # 1. Habilitar auto-arranque
-./biomed-control.sh enable
+./biomed-control.sh
+# Seleccionar opción [5]
 
 # 2. Reiniciar Pi
 sudo reboot
@@ -168,7 +224,8 @@ sudo reboot
 
 ```bash
 # 1. Deshabilitar auto-arranque (no estorba al programar)
-./biomed-control.sh disable
+./biomed-control.sh
+# Seleccionar opción [6]
 
 # 2. Cuando necesites probar, inicia manualmente
 ./biomed-control.sh start
@@ -210,7 +267,7 @@ Al cerrar la ventana de Edge (X o Alt+F4):
 ### biomed.db (Edge - Local)
 - **Ubicación:** `/home/harlink/biomed-pi5/data/biomed.db`
 - **Función:** Almacenamiento local rápido
-- **Store-and-forward:** Datos con `synced=0` se reintentan vía MQTT
+- **Publicación:** Datos se publican a MQTT inmediatamente con raw incluido
 
 ### storage.db (API - Permanente)
 - **Ubicación:** `/home/harlink/biomed-pi5/data/storage.db`
@@ -252,6 +309,23 @@ biomed/pi5-001/temp         ← Temperatura corporal
 biomed/pi5-001/spo2         ← SpO2 + HR (con señales raw IR/Red)
 biomed/pi5-001/bp           ← Presión arterial (con señales raw)
 biomed/pi5-001/session/end  ← Cierre de sesión
+
+### Arquitectura de Publicación
+
+**Flujo simplificado (sin Raw Sync Service):**
+Edge guarda medición + raw en biomed.db
+↓
+Edge publica a MQTT (datos procesados + raw en un solo mensaje)
+↓
+MQTT Broker distribuye
+↓
+Subscriber recibe y guarda en storage.db
+
+**Características:**
+- Todo se publica en un solo mensaje (no hay doble publicación)
+- Raw incluido desde el primer momento
+- No hay servicio de reintento (todo funciona en primera instancia)
+
 ### Monitorear Mensajes
 
 ```bash
@@ -260,6 +334,12 @@ mosquitto_sub -h localhost -t 'biomed/pi5-001/#' -v
 
 # Ver solo temperatura
 mosquitto_sub -h localhost -t 'biomed/pi5-001/temp' -v
+
+# Ver solo SpO2 (incluye raw)
+mosquitto_sub -h localhost -t 'biomed/pi5-001/spo2' -v
+
+# Ver solo presión (incluye raw)
+mosquitto_sub -h localhost -t 'biomed/pi5-001/bp' -v
 
 # Ver solo cierres de sesión
 mosquitto_sub -h localhost -t 'biomed/pi5-001/session/end' -v
@@ -399,18 +479,20 @@ sudo systemctl restart biomed-mqtt-subscriber
 sqlite3 /home/harlink/biomed-pi5/data/storage.db \
   "SELECT id, started_at, ended_at FROM sessions WHERE ended_at IS NULL"
 
-# Cerrar manualmente
+# Cerrar manualmente desde Edge
+# Tab Paciente → Botón "Cerrar Sesión"
+
+# O cerrar todas las huérfanas con script
 cd /home/harlink/biomed-pi5
 source .venv/bin/activate
 python tools/close_open_sessions.py
-python tools/sync_sessions.py
 ```
 
 ---
 
 ## 📁 Estructura del Proyecto
 biomed-pi5/
-├── biomed-control.sh        # ← Script helper principal
+├── biomed-control.sh        # ← Script helper principal (INTERACTIVO)
 ├── start_biomed.sh          # ← Launcher modo desarrollo
 ├── start_biomed_prod.sh     # ← Launcher modo producción
 ├── stop_biomed.sh           # ← Detener servicios manuales
@@ -427,16 +509,15 @@ biomed-pi5/
 │   └── storage.db           # ← DB permanente API
 │
 ├── tools/
-│   ├── close_open_sessions.py  # ← Cerrar sesiones huérfanas
-│   └── sync_sessions.py        # ← Sincronizar sesiones manual
+│   └── close_open_sessions.py  # ← Cerrar sesiones huérfanas
 │
 └── services/
 ├── mqtt_subscriber.py      # ← Replica MQTT → storage.db
-├── raw_sync_service.py     # ← Sincroniza raw cada 30s
 ├── storage/                # ← FastAPI
 │   └── main.py
 └── webapp/                 # ← Next.js PWA
 └── start-https.mjs
+
 ---
 
 ## 📊 Datos que se Sincronizan
@@ -444,10 +525,8 @@ biomed-pi5/
 ### Vía MQTT en Tiempo Real
 
 - ✅ Temperatura corporal (cada 10s si persona detectada)
-- ✅ SpO2 y HR procesados (cada 90s)
-- ✅ Presión arterial procesada (bajo demanda)
-- ✅ Señales raw SpO2 (IR, Red, umbrales)
-- ✅ Señales raw BP (presión, oscilaciones, envolvente)
+- ✅ SpO2 y HR procesados + señales raw (IR, Red, umbrales)
+- ✅ Presión arterial procesada + señales raw (presión, oscilaciones, envolvente)
 - ✅ **Cierre de sesión** (automático vía MQTT)
 
 ### ⚠️ Aclaración Importante: TODO va por MQTT
@@ -456,23 +535,15 @@ biomed-pi5/
 
 Todos los datos (procesados y raw) viajan vía MQTT:
 
-1. **Edge** guarda en `biomed.db` + publica a MQTT
+1. **Edge** guarda en `biomed.db` + publica a MQTT (un solo mensaje con todo)
 2. **MQTT Broker** (Mosquitto) distribuye los mensajes
 3. **Subscriber** recibe y guarda en `storage.db`
 
-**Raw Sync Service** NO copia entre DBs, sino que:
-- Lee raw con `synced=0` de `biomed.db`
-- **RE-PUBLICA a MQTT** (retry)
-- Subscriber los recibe y guarda en `storage.db`
-
-**Todo pasa por MQTT.** Store-and-forward garantiza que nada se pierda.
-
-### Store-and-Forward Automático
-
-Si MQTT falla temporalmente:
-- Datos procesados: reintentan cada 30s
-- Datos raw: reintentan cada 30s
-- Cierres de sesión: se publican al reconectar
+**Características:**
+- Un solo mensaje por medición (no duplicados)
+- Raw incluido desde la primera publicación
+- Sin servicio de reintento (todo funciona en primera instancia)
+- Store-and-forward garantiza entrega confiable
 
 ---
 
@@ -537,9 +608,9 @@ sudo reboot
 
 **Si algo no funciona:**
 
-1. Ver logs: `./biomed-control.sh logs [servicio]`
-2. Verificar estado: `./biomed-control.sh status`
-3. Reinstalar servicios: `./biomed-control.sh reinstall`
+1. Usar menú interactivo: `./biomed-control.sh`
+2. Ver logs del servicio problemático (opción [8])
+3. Reinstalar servicios si es necesario (opción [9])
 4. Revisar STRUCTURE.md para detalles técnicos
 
 **Archivos de log:**
@@ -554,4 +625,4 @@ sudo journalctl -u biomed-* --since today
 ---
 
 **Última actualización:** Mayo 2026  
-**Versión:** 3.0 (Systemd + Auto-arranque + Script Helper)
+**Versión:** 4.0 (Menú Interactivo + 4 Servicios + Publicación Unificada)

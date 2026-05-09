@@ -17,15 +17,11 @@ tmux send-keys -t $SESSION:edge "source .venv/bin/activate && python main.py" C-
 tmux new-window -t $SESSION -n "mqtt-sub" -c "$PROJECT_DIR/services"
 tmux send-keys -t $SESSION:mqtt-sub "source ../.venv/bin/activate && python mqtt_subscriber.py" C-m
 
-# Ventana 3 - Raw Sync
-tmux new-window -t $SESSION -n "raw-sync" -c "$PROJECT_DIR/services"
-tmux send-keys -t $SESSION:raw-sync "source ../.venv/bin/activate && python raw_sync_service.py" C-m
-
-# Ventana 4 - FastAPI
+# Ventana 3 - FastAPI
 tmux new-window -t $SESSION -n "fastapi" -c "$PROJECT_DIR/services/storage"
 tmux send-keys -t $SESSION:fastapi "source ../../.venv/bin/activate && uvicorn main:app --host 0.0.0.0 --port 8000 --reload" C-m
 
-# Ventana 5 - PWA
+# Ventana 4 - PWA
 tmux new-window -t $SESSION -n "pwa" -c "$PROJECT_DIR/services/webapp"
 tmux send-keys -t $SESSION:pwa "npm run dev" C-m
 
@@ -40,7 +36,7 @@ echo "Para conectarte:"
 echo "  tmux attach -t biomed"
 echo ""
 echo "Navegación tmux:"
-echo "  Ctrl+B luego 0-4  → cambiar ventana"
+echo "  Ctrl+B luego 0-3  → cambiar ventana"
 echo "  Ctrl+B luego d    → detach (deja corriendo)"
 echo ""
 echo "Para detener todo:"

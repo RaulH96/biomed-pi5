@@ -105,7 +105,11 @@ class SessionManager:
                 print("[Session] BP — sin sesion activa, ignorando")
                 return False
             bp_id = save_bp(self._session_id, result)
-            self.mqtt.publish_bp(bp_id, result, self._session_id)
+            self.mqtt.publish_bp(
+                bp_id=bp_id,
+                result=result,
+                session_id=self._session_id
+            )
             print(f"[Session] BP guardado id={bp_id} "
                   f"{result['sys']:.0f}/{result['dia']:.0f} mmHg")
             return True
@@ -143,7 +147,14 @@ class SessionManager:
                 thresh_low  = list(monitor.thresh_low_hist),
             )
             self.mqtt.publish_spo2(
-                spo2_id, monitor.spo2, monitor.bpm, self._session_id
+                spo2_id=spo2_id,
+                spo2=monitor.spo2,
+                hr=monitor.bpm,
+                session_id=self._session_id,
+                ir_buf=list(monitor.ir_buffer),
+                red_buf=list(monitor.red_buffer),
+                thresh_high=list(monitor.thresh_high_hist),
+                thresh_low=list(monitor.thresh_low_hist),
             )
             self._spo2_last_save = now
             print(f"[Session] SpO2 guardado id={spo2_id} "
