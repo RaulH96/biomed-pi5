@@ -347,16 +347,27 @@ class PatientWidget(QWidget):
         if storage.session_manager and storage.session_manager.has_session():
             storage.session_manager.end_session()
             self.btn_close_session.setText("✓  Sesión Cerrada")
-            # Toast si el padre tiene el método
+            
+            # Toast
             if hasattr(self.parent(), 'toast'):
                 self.parent().toast("✓ Sesión cerrada exitosamente", 3000, Colors.BLUE_400)
+            
             # Restaurar texto del botón después de 2s
             from PyQt6.QtCore import QTimer
             QTimer.singleShot(2000, lambda: self.btn_close_session.setText("🔒  Cerrar Sesión"))
+            
+            # NUEVO: Mostrar diálogo de bienvenida para nueva sesión
+            QTimer.singleShot(2500, self._show_welcome)
         else:
             if hasattr(self.parent(), 'toast'):
                 self.parent().toast("⚠ No hay sesión activa", 2000, Colors.YELLOW_400)
-
+    
+    def _show_welcome_dialog(self):
+        """Mostrar diálogo de bienvenida para iniciar nueva sesión"""
+        # Obtener referencia a MainWindow
+        main_window = self.parent()
+        if hasattr(main_window, 'show_welcome_dialog'):
+            main_window.show_welcome_dialog()
 
     def _refresh_shadows(self):
         for w in self._shadow_widgets:
