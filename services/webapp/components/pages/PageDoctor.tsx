@@ -16,17 +16,21 @@ export default function PageDoctor({ dark }: Props) {
   const [selectedSession, setSelectedSession] = useState<any>(null)
   const [sessionDetail, setSessionDetail] = useState<any>(null)
 
+  // Histograma configuración
+  const [histogramMetric, setHistogramMetric] = useState<'temp' | 'spo2' | 'bp'>('temp')
+  const [histogramRange, setHistogramRange] = useState<number>(15)
+
   const c = dark
     ? { card: '#161B27', border: '#1E2535', text: '#E4E6EB', muted: '#6B7A99', sub: '#CDD0D8', bg: '#0F1117' }
     : { card: '#fff', border: '#E2E8F4', text: '#1C2340', muted: '#8892AA', sub: '#4A5268', bg: '#FAFBFE' }
 
   useEffect(() => {
     Promise.all([
-      fetchBpTrends(15),
-      fetchSpo2Trends(15),
-      fetchTempTrends(15),
+      fetchBpTrends(100),      // Traer más datos para histograma
+      fetchSpo2Trends(100),
+      fetchTempTrends(100),
       fetchAlerts(),
-      fetchDoctorSessions(20),
+      fetchDoctorSessions(999), // TODAS las sesiones
     ])
       .then(([bp, spo2, temp, al, sess]) => {
         setBpTrends(bp)
@@ -61,6 +65,39 @@ export default function PageDoctor({ dark }: Props) {
     ...(alerts?.spo2 || []),
     ...(alerts?.temp || []),
   ].sort((a, b) => b.ts - a.ts)
+
+  // Datos para histograma
+  const getHistogramData = () => {
+    let data: number[] = []
+    let label = ''
+    let unit = ''
+    let color = ''
+
+    switch (histogramMetric) {
+      case 'temp':
+        data = tempTrends.slice(-histogramRange).map((d: any) => d.temp_c)
+        label = 'Temperatura'
+        unit = '°C'
+        color = dark ? colors.teal.dark : colors.teal.main
+        break
+      case 'spo2':
+        data = spo2Trends.slice(-histogramRange).map((d: any) => d.spo2_pct)
+        label = 'SpO2'
+        unit = '%'
+        color = colors.blue.main
+        break
+      case 'bp':
+        data = bpTrends.slice(-histogramRange).map((d: any) => d.sys_mmhg)
+        label = 'Presión Sistólica'
+        unit = 'mmHg'
+        color = colors.amber.main
+        break
+    }
+
+    return { data, label, unit, color }
+  }
+
+  const histogramData = getHistogramData()
 
   return (
     <div style={{ color: c.text, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -110,7 +147,82 @@ export default function PageDoctor({ dark }: Props) {
         )}
       </div>
 
-      {/* Tendencias */}
+      {/* NUEVO: Histograma configurable */}
+      <div style={{
+        background: c.card,
+        borderRadius: 14,
+        border: `0.5px solid ${c.border}`,
+        padding: 16,
+      }}>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 16,
+        }}>
+          <div style={{
+            fontSize: 12,
+            fontWeight: 500,
+            textTransform: 'uppercase',
+            letterSpacing: '0.06em',
+            color: c.muted,
+          }}>
+            📊 Histograma de tendencias
+          </div>
+          <div style={{ display: 'flex', gap: 12 }}>
+            {/* Selector de métrica */}
+            <select
+              value={histogramMetric}
+              onChange={(e) => setHistogramMetric(e.target.value as any)}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: `0.5px solid ${c.border}`,
+                background: dark ? '#0F1117' : '#F4F6FB',
+                color: c.text,
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="temp">Temperatura</option>
+              <option value="spo2">SpO2</option>
+              <option value="bp">Presión Arterial</option>
+            </select>
+
+            {/* Selector de rango */}
+            <select
+              value={histogramRange}
+              onChange={(e) => setHistogramRange(Number(e.target.value))}
+              style={{
+                padding: '6px 10px',
+                borderRadius: 6,
+                border: `0.5px solid ${c.border}`,
+                background: dark ? '#0F1117' : '#F4F6FB',
+                color: c.text,
+                fontSize: 11,
+                cursor: 'pointer',
+              }}
+            >
+              <option value={7}>Últimas 7</option>
+              <option value={15}>Últimas 15</option>
+              <option value={30}>Últimas 30</option>
+              <option value={50}>Últimas 50</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Histograma */}
+        <Histogram
+          data={histogramData.data}
+          label={histogramData.label}
+          unit={histogramData.unit}
+          color={histogramData.color}
+          dark={dark}
+          c={c}
+        />
+      </div>
+
+      {/* Mini tendencias (sin cambios) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
         <TrendCard
           title="Presión arterial"
@@ -138,7 +250,7 @@ export default function PageDoctor({ dark }: Props) {
         />
       </div>
 
-      {/* Sesiones con señales raw */}
+      {/* Sesiones con señales raw - TODAS */}
       <div style={{
         background: c.card,
         borderRadius: 14,
@@ -154,88 +266,90 @@ export default function PageDoctor({ dark }: Props) {
           letterSpacing: '0.06em',
           color: c.muted,
         }}>
-          Señales raw disponibles
+          Señales raw disponibles ({sessions.filter(s => s.spo2_count > 0 || s.bp_count > 0).length} sesiones)
         </div>
         {sessions.filter(s => s.spo2_count > 0 || s.bp_count > 0).length === 0 ? (
           <div style={{ padding: 16, fontSize: 12, color: c.muted }}>
             Sin señales registradas
           </div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
-            <thead>
-              <tr>
-                {['Sesión', 'Fecha', 'SpO2', 'Presión', 'Ver'].map(h => (
-                  <th key={h} style={{
-                    textAlign: 'left',
-                    padding: '8px 16px',
-                    color: c.muted,
-                    fontWeight: 500,
-                    borderBottom: `0.5px solid ${c.border}`,
-                    fontSize: 11,
-                  }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.filter(s => s.spo2_count > 0 || s.bp_count > 0).slice(0, 10).map((s: any, i: number) => (
-                <tr key={s.id} style={{
-                  background: i % 2 === 0
-                    ? 'transparent'
-                    : dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
-                }}>
-                  <td style={{
-                    padding: '8px 16px',
-                    color: c.sub,
-                    borderBottom: `0.5px solid ${c.border}`,
-                  }}>
-                    #{s.id}
-                  </td>
-                  <td style={{
-                    padding: '8px 16px',
-                    color: c.sub,
-                    borderBottom: `0.5px solid ${c.border}`,
-                  }}>
-                    {fmtDate(s.started_at)}
-                  </td>
-                  <td style={{
-                    padding: '8px 16px',
-                    color: c.muted,
-                    borderBottom: `0.5px solid ${c.border}`,
-                  }}>
-                    {s.spo2_count || 0}
-                  </td>
-                  <td style={{
-                    padding: '8px 16px',
-                    color: c.muted,
-                    borderBottom: `0.5px solid ${c.border}`,
-                  }}>
-                    {s.bp_count || 0}
-                  </td>
-                  <td style={{
-                    padding: '8px 16px',
-                    borderBottom: `0.5px solid ${c.border}`,
-                  }}>
-                    <button
-                      onClick={() => setSelectedSession(s)}
-                      style={{
-                        padding: '4px 12px',
-                        borderRadius: 6,
-                        border: 'none',
-                        background: colors.teal.main,
-                        color: '#fff',
-                        fontSize: 11,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Ver señales
-                    </button>
-                  </td>
+          <div style={{ maxHeight: 400, overflow: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead style={{ position: 'sticky', top: 0, background: c.card, zIndex: 1 }}>
+                <tr>
+                  {['Sesión', 'Fecha', 'SpO2', 'Presión', 'Ver'].map(h => (
+                    <th key={h} style={{
+                      textAlign: 'left',
+                      padding: '8px 16px',
+                      color: c.muted,
+                      fontWeight: 500,
+                      borderBottom: `0.5px solid ${c.border}`,
+                      fontSize: 11,
+                    }}>
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sessions.filter(s => s.spo2_count > 0 || s.bp_count > 0).map((s: any, i: number) => (
+                  <tr key={s.id} style={{
+                    background: i % 2 === 0
+                      ? 'transparent'
+                      : dark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)',
+                  }}>
+                    <td style={{
+                      padding: '8px 16px',
+                      color: c.sub,
+                      borderBottom: `0.5px solid ${c.border}`,
+                    }}>
+                      #{s.id}
+                    </td>
+                    <td style={{
+                      padding: '8px 16px',
+                      color: c.sub,
+                      borderBottom: `0.5px solid ${c.border}`,
+                    }}>
+                      {fmtDate(s.started_at)}
+                    </td>
+                    <td style={{
+                      padding: '8px 16px',
+                      color: c.muted,
+                      borderBottom: `0.5px solid ${c.border}`,
+                    }}>
+                      {s.spo2_count || 0}
+                    </td>
+                    <td style={{
+                      padding: '8px 16px',
+                      color: c.muted,
+                      borderBottom: `0.5px solid ${c.border}`,
+                    }}>
+                      {s.bp_count || 0}
+                    </td>
+                    <td style={{
+                      padding: '8px 16px',
+                      borderBottom: `0.5px solid ${c.border}`,
+                    }}>
+                      <button
+                        onClick={() => setSelectedSession(s)}
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: 6,
+                          border: 'none',
+                          background: colors.teal.main,
+                          color: '#fff',
+                          fontSize: 11,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Ver señales
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -253,6 +367,92 @@ export default function PageDoctor({ dark }: Props) {
   )
 }
 
+// NUEVO: Componente Histograma
+function Histogram({ data, label, unit, color, dark, c }: any) {
+  if (data.length === 0) {
+    return (
+      <div style={{ padding: 32, textAlign: 'center', color: c.muted, fontSize: 12 }}>
+        Sin datos suficientes
+      </div>
+    )
+  }
+
+  const max = Math.max(...data)
+  const min = Math.min(...data)
+  const range = max - min || 1
+  const avg = data.reduce((a: number, b: number) => a + b, 0) / data.length
+
+  return (
+    <div>
+      {/* Gráfica */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: 4,
+        height: 180,
+        padding: '0 8px',
+        marginBottom: 12,
+        borderBottom: `1px solid ${c.border}`,
+      }}>
+        {data.map((val: number, i: number) => {
+          const height = ((val - min) / range) * 100 || 50
+          return (
+            <div
+              key={i}
+              title={`${val.toFixed(1)} ${unit}`}
+              style={{
+                flex: 1,
+                height: `${height}%`,
+                background: color,
+                opacity: 0.8,
+                borderRadius: '3px 3px 0 0',
+                cursor: 'pointer',
+                transition: 'opacity 0.2s',
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+              onMouseLeave={(e) => e.currentTarget.style.opacity = '0.8'}
+            />
+          )
+        })}
+      </div>
+
+      {/* Estadísticas */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gap: 12,
+        fontSize: 11,
+      }}>
+        <div>
+          <div style={{ color: c.muted }}>Promedio</div>
+          <div style={{ color, fontWeight: 500, fontSize: 14 }}>
+            {avg.toFixed(1)} {unit}
+          </div>
+        </div>
+        <div>
+          <div style={{ color: c.muted }}>Máximo</div>
+          <div style={{ color: c.sub, fontWeight: 500, fontSize: 14 }}>
+            {max.toFixed(1)} {unit}
+          </div>
+        </div>
+        <div>
+          <div style={{ color: c.muted }}>Mínimo</div>
+          <div style={{ color: c.sub, fontWeight: 500, fontSize: 14 }}>
+            {min.toFixed(1)} {unit}
+          </div>
+        </div>
+        <div>
+          <div style={{ color: c.muted }}>Mediciones</div>
+          <div style={{ color: c.sub, fontWeight: 500, fontSize: 14 }}>
+            {data.length}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Resto del código sin cambios (WaveformModal, TrendCard)
 function WaveformModal({ session, sessionDetail, onClose, dark, c }: any) {
   const [tab, setTab] = useState<'spo2' | 'bp'>('spo2')
   const [selectedMeasurement, setSelectedMeasurement] = useState<number | null>(null)
