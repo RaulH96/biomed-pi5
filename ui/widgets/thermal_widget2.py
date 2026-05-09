@@ -249,3 +249,22 @@ class ThermalWidget2(QWidget):
         self.dark = dark
         self.switch.setChecked(dark)
         self._apply_style()
+  
+    def clear_frame(self):
+        """Limpiar la imagen térmica al salir del tab"""
+        # Poner imagen en negro
+        if hasattr(self, '_canvas') and self._canvas:
+            from PyQt6.QtGui import QPixmap, QColor
+            black_pixmap = QPixmap(self._canvas.size())
+            black_pixmap.fill(QColor(0, 0, 0))  # Negro
+            self._canvas.setPixmap(black_pixmap)
+        
+        # Resetear labels
+        if hasattr(self, 'lbl_temp'):
+            self.lbl_temp.setText("--.-")
+        if hasattr(self, 'lbl_badge'):
+            self.lbl_badge.setText("Sin persona detectada")
+            self.lbl_badge.setStyleSheet(
+                f"background:#E4E6EB; color:#555A6A; "
+                "border-radius:12px; padding:4px 12px; font-size:11px;"
+            )

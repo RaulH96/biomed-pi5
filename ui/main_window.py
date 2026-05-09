@@ -342,7 +342,25 @@ class MainWindow(QMainWindow):
 
     def _set_tab_active(self, idx: int, active: bool):
         page = self._pages[idx]
-
+        # ══════════════════════════════════════════════════════════
+        # Tab 0: Temperatura - pausar/reanudar y limpiar
+        # ══════════════════════════════════════════════════════════
+        if idx == 0:
+            if active:
+                # Reanudar timer de temperatura
+                if hasattr(self, '_temp_timer'):
+                    self._temp_timer.start(500)
+            else:
+                # Pausar timer y limpiar imagen
+                if hasattr(self, '_temp_timer'):
+                    self._temp_timer.stop()
+                # Limpiar imagen térmica
+                if hasattr(self.page_temp, 'clear_frame'):
+                    self.page_temp.clear_frame()
+        # ══════════════════════════════════════════════════════════
+        # Tab 2: Presión - inicializar lazy (código existente)
+        # ══════════════════════════════════════════════════════════
+                           
         # Presion — inicializar lazy al entrar al tab
         if active and idx == 2 and self._pressure_monitor is None \
                 and _cfg["sensors"]["pressure"].get("enabled", False):
@@ -353,7 +371,9 @@ class MainWindow(QMainWindow):
                 print("[Presion] Monitor inicializado")
             except Exception as e:
                 print(f"[Presion] No disponible: {e}")
-
+        # ══════════════════════════════════════════════════════════
+        # Tab 1: SpO2 - timer y LEDs 
+        # ══════════════════════════════════════════════════════════
         # SpO2 timer — solo corre cuando el usuario esta en ese tab
         # Al entrar: inicia desde cero. Al salir: detiene.
         if hasattr(self, "_spo2_timer"):
@@ -368,6 +388,10 @@ class MainWindow(QMainWindow):
                 self._spo2_monitor.resume()
             elif idx == 1 and not active:
                 self._spo2_monitor.pause()
+        # ══════════════════════════════════════════════════════════
+        # Manejo genérico de timers de página (código existente)
+        # ══════════════════════════════════════════════════════════
+
 
         if not hasattr(page, "timer"):
             return
