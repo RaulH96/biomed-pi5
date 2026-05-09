@@ -56,38 +56,13 @@ def calcular_bp(presiones: list, tiempos: list) -> tuple[dict | None, str | None
     amp     = np.abs(osc[picos])
     p_picos = p[picos]
 
-    # ═══════════════════════════════════════════════════════════
-    # FIX TRANSITORIO: Descartar primeros picos (zona de inflado)
-    # ═══════════════════════════════════════════════════════════
-    # Encontrar donde termina el inflado (presión máxima)
-    idx_pico_max_presion = np.argmax(p_picos)
-    
-    # Descartar picos en zona de transitorio (primeros 2-3 picos después del máximo)
-    SKIP_PICOS_TRANSITORIO = 3  # Descartar primeros 3 picos
-    
-    if idx_pico_max_presion + SKIP_PICOS_TRANSITORIO < len(picos):
-        # Trabajar solo con picos DESPUÉS del transitorio
-        idx_valido_inicio = idx_pico_max_presion + SKIP_PICOS_TRANSITORIO
-        amp_valida = amp[idx_valido_inicio:]
-        p_picos_valida = p_picos[idx_valido_inicio:]
-        picos_validos = picos[idx_valido_inicio:]
-    else:
-        # Si no hay suficientes picos después, usar todos
-        amp_valida = amp
-        p_picos_valida = p_picos
-        picos_validos = picos
-    
-    if len(amp_valida) < 5:
-        return None, f"Insuficientes picos válidos después del transitorio ({len(amp_valida)})"
-    # ═══════════════════════════════════════════════════════════
-
-    wl  = min(11, len(amp_valida) if len(amp_valida) % 2 == 1 else len(amp_valida) - 1)
+    wl  = min(11, len(amp) if len(amp) % 2 == 1 else len(amp) - 1)
     wl  = max(wl, 5)
-    env = savgol_filter(amp_valida, window_length=wl, polyorder=2) if len(amp_valida) >= 5 else amp_valida.copy()
+    env = savgol_filter(amp, window_length=wl, polyorder=2) if len(amp) >= 5 else amp.copy()
 
-    idx_max  = np.argmax(env)  # Ahora busca en zona SIN transitorio
+    idx_max  = np.argmax(env)
     amp_max  = env[idx_max]
-    map_mmhg = p_picos_valida[idx_max]  # MAP real, no transitorio
+    map_mmhg = p_picos[idx_max]
 
     # Ratios oscilometricos — ajustados empiricamente
     ratio_sys = _ALG["ratio_sys"]
@@ -97,16 +72,16 @@ def calcular_bp(presiones: list, tiempos: list) -> tuple[dict | None, str | None
     for i in range(idx_max, -1, -1):
         if env[i] <= amp_max * ratio_sys:
             idx_sys = i; break
-    sys_crudo = p_picos_valida[idx_sys]
+    sys_crudo = p_picos[idx_sys]
 
     idx_dia = len(env) - 1
     for i in range(idx_max, len(env)):
         if env[i] <= amp_max * ratio_dia:
             idx_dia = i; break
-    dia_crudo = p_picos_valida[idx_dia]
+    dia_crudo = p_picos[idx_dia]
 
     # FC
-    intervalos = np.diff(t[picos_validos])  # Usar picos válidos
+    intervalos = np.diff(t[picos])
     intervalos = intervalos[
         (intervalos > _ALG["hr_interval_min"]) &
         (intervalos < _ALG["hr_interval_max"])
@@ -122,13 +97,14 @@ def calcular_bp(presiones: list, tiempos: list) -> tuple[dict | None, str | None
         'dia': round(dia_cal, 1),
         'map': round(map_mmhg, 1),
         'hr':  hr,
-        'n_picos': len(picos_validos),
+        'n_picos': len(picos),
         'sys_crudo': sys_crudo,
         'dia_crudo': dia_crudo,
-        'osc': osc, 'picos': picos_validos, 'env': env,
-        'p_arr': p, 't_arr': t, 'p_picos': p_picos_valida,
+        'osc': osc, 'picos': picos, 'env': env,
+        'p_arr': p, 't_arr': t, 'p_picos': p_picos,
         'idx_max': idx_max, 'idx_sys': idx_sys, 'idx_dia': idx_dia,
     }, None
+
 
 def classify_bp(sys: float, dia: float) -> tuple[str, str]:
     """Retorna (categoria, color_hex) segun JNC/AHA"""

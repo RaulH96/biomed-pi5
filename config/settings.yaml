@@ -121,7 +121,7 @@ sensors:
     # Presión objetivo de inflado en mmHg
     # Debe ser mayor que la presión sistólica esperada (~20-30 mmHg más)
     # Bajar si el paciente se queja de molestia, no bajar de 150
-    meta_inflate_mmhg: 165.0
+    meta_inflate_mmhg: 180.0 #165
 
     # Presión a la que se detiene la grabación de señal en mmHg
     # Debe ser menor que la presión diastólica esperada
