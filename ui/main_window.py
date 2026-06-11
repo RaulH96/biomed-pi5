@@ -51,6 +51,19 @@ class TabButton(QPushButton):
         p.end()
 
 
+class _DimOverlay(QWidget):
+    """Overlay semitransparente que tapa el fondo durante el diálogo de bienvenida."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.setAutoFillBackground(False)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.fillRect(self.rect(), QColor(0, 0, 0, 210))
+        p.end()
+
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -144,8 +157,13 @@ class MainWindow(QMainWindow):
     def _show_welcome(self):
         import json, uuid
         from pathlib import Path
+        overlay = _DimOverlay(self._root)
+        overlay.setGeometry(self._root.rect())
+        overlay.show()
+        overlay.raise_()
         dlg = WelcomeDialog(dark=self.dark, parent=self)
         dlg.exec()
+        overlay.deleteLater()
 
         if dlg.choice == "continue":
             patient = {}
@@ -163,6 +181,7 @@ class MainWindow(QMainWindow):
             if self._sm:
                 self._sm.start_session(name, patient_uuid=pid)
             self.toast(f"✓ Sesión iniciada · {name}")
+            self._switch_tab(0)
 
         elif dlg.choice == "change":
             self._switch_tab(3)
@@ -173,6 +192,7 @@ class MainWindow(QMainWindow):
             if self._sm:
                 self._sm.start_session("anonimo")
             self.toast("Sesión anónima iniciada", color=Colors.SLATE_400)
+            self._switch_tab(0)
 
     # ── Storage timers ────────────────────────────────────────
     def _init_storage_timers(self):

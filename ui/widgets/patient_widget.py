@@ -357,17 +357,16 @@ class PatientWidget(QWidget):
             QTimer.singleShot(2000, lambda: self.btn_close_session.setText("🔒  Cerrar Sesión"))
             
             # NUEVO: Mostrar diálogo de bienvenida para nueva sesión
-            QTimer.singleShot(2500, self._show_welcome)
+            QTimer.singleShot(2500, self._show_welcome_dialog)
         else:
             if hasattr(self.parent(), 'toast'):
                 self.parent().toast("⚠ No hay sesión activa", 2000, Colors.YELLOW_400)
     
     def _show_welcome_dialog(self):
         """Mostrar diálogo de bienvenida para iniciar nueva sesión"""
-        # Obtener referencia a MainWindow
-        main_window = self.parent()
-        if hasattr(main_window, 'show_welcome_dialog'):
-            main_window.show_welcome_dialog()
+        main_window = self.window()
+        if hasattr(main_window, '_show_welcome'):
+            main_window._show_welcome()
 
     def _refresh_shadows(self):
         for w in self._shadow_widgets:
