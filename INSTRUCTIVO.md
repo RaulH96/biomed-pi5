@@ -299,6 +299,19 @@ Al cerrar la ventana (X o Alt+F4), se cierra la sesión activa automáticamente 
 - **Ubicación:** `data/storage.db`
 - **Función:** Datos replicados vía MQTT, consumidos por FastAPI/PWA
 
+### Datos de Demo
+
+Las dos bases del repo traen datos **sintéticos** de demo: ~35 sesiones de los últimos 30 días para la paciente de `config/patient.json` (hipertensión tratada: la presión mejora a lo largo del mes, con un episodio de febrícula), con señales crudas fisiológicas (PPG de SpO2 y oscilometría de presión) coherentes con los valores guardados.
+
+Para regenerarlas (por ejemplo, para que las gráficas de 7 días vuelvan a quedar al día):
+```bash
+./biomed-control.sh stop
+.venv/bin/python tools/generar_demo.py            # opciones: --dias 45 --semilla 3
+./biomed-control.sh start
+```
+
+> Reemplaza `biomed.db` y `storage.db` por completo: las sesiones medidas de verdad se pierden (respáldalas antes si las quieres).
+
 ### Ver Datos
 
 ```bash
