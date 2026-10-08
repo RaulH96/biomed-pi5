@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sidebar from '@/components/Sidebar'
 import PageInicio     from '@/components/pages/PageInicio'
 import PageMediciones from '@/components/pages/PageMediciones'
@@ -10,6 +10,13 @@ import PageAjustes    from '@/components/pages/PageAjustes'
 export default function App() {
   const [page, setPage] = useState('inicio')
   const [dark, setDark] = useState(false)
+  // La fecha se calcula en el navegador: en producción la página se pre-genera
+  // al compilar y una fecha calculada al renderizar quedaría congelada (y React
+  // marcaría error de hidratación #418 al no coincidir con la del cliente).
+  const [today, setToday] = useState('')
+  useEffect(() => {
+    setToday(new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))
+  }, [])
 
   const t = dark
     ? { bg: '#0F1117', border: '#1E2535', text: '#E4E6EB', muted: '#6B7A99' }
@@ -47,7 +54,7 @@ export default function App() {
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <span style={{ fontSize: 12, color: t.muted }}>
-              {new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              {today}
             </span>
             {/* Toggle dark */}
             <div

@@ -1,8 +1,13 @@
 #!/bin/bash
 # Script para iniciar todos los servicios de biomed-pi5
 
-PROJECT_DIR="/home/harlink/biomed-pi5"
+PROJECT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
 VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
+
+# Los servicios de producción (arranque automático) ocupan los puertos 8000/3000
+# y la Edge UI: se detienen antes de abrir las terminales de desarrollo.
+# Vuelven a arrancar al reiniciar la Pi o con el ícono de PRODUCCIÓN.
+"$PROJECT_DIR/biomed-control.sh" stop > /dev/null 2>&1
 
 # Colores para output
 GREEN='\033[0;32m'
@@ -54,7 +59,6 @@ echo "  • PWA Dev → http://harlink.local:3000"
 echo ""
 echo -e "${YELLOW}Modo: DESARROLLO (hot reload)${NC}"
 echo ""
-echo "Para PWA en modo PRODUCCIÓN (instalable):"
-echo "  cd $PROJECT_DIR/services/webapp"
-echo "  npm run build && node start-https.mjs"
+echo "Para volver a PRODUCCIÓN (PWA HTTPS instalable):"
+echo "  ícono Biomed Pi5 (PRODUCCIÓN), o: $PROJECT_DIR/biomed-control.sh restart"
 echo "  https://harlink.local:3000"

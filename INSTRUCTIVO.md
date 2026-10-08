@@ -23,13 +23,16 @@ bash setup.sh
 | 3 | Instala **Node.js + npm** |
 | 4 | Habilita **I2C y SPI** (sensores MLX90640, MAX30102, MPX5050) |
 | 5 | Configura hostname `harlink` + **avahi** → `harlink.local` sin depender de IP |
-| 6 | Crea `.venv` e instala **requirements.txt** completo (FastAPI, PyQt6, paho-mqtt…) |
-| 7 | Ejecuta `npm install` en `services/webapp/` |
+| 6 | Crea `.venv` e instala **requirements.txt** con las versiones fijadas en `requirements.lock` |
+| 7 | `npm ci` en `services/webapp/`, genera el certificado SSL y **compila la PWA** (`npm run build`) |
 | 8 | Crea directorios `assets/` y `data/`, genera **accesos directos** en el escritorio |
+| 9 | Instala los **servicios** y deja el **arranque automático habilitado**; arranca todo y lo verifica |
 
-Al final pregunta si deseas reiniciar (necesario para activar I2C/SPI).
+Al terminar **todo queda corriendo** y vuelve a arrancar solo cada vez que se enciende la Pi. Solo pregunta si deseas reiniciar cuando hace falta (I2C/SPI recién activados o hostname nuevo).
 
-> **Nota:** `node_modules/` y `.venv/` están en `.gitignore` y no se guardan en el repo. `setup.sh` los reconstruye desde cero en cada instalación nueva.
+> **Importante:** ejecuta `bash setup.sh` **sin** `sudo` (el script pide la contraseña cuando la necesita). El usuario debe ser `harlink`.
+
+> **Nota:** `node_modules/`, `.venv/` y `.next/` están en `.gitignore` y no se guardan en el repo. `setup.sh` los reconstruye en cada instalación nueva. Las bases de datos de `data/`, `config/patient.json` y las fotos de `assets/` **sí** están en el repo: son los datos de demo.
 
 ---
 
@@ -75,10 +78,13 @@ Se abrirá un menú interactivo con todas las opciones:
 [6] ✗  Deshabilitar inicio automático
 [7] ?  Verificar configuración de arranque
 [8] 📋 Ver logs en tiempo real
-[9] 🔧 Reinstalar servicios systemd
+[9] 🔧 Reinstalar servicios
 [10] 🧹 Limpiar logs antiguos
+[11] 🏗  Recompilar PWA (tras editar la webapp)
 [0] Salir
 ```
+
+Ninguna opción pide contraseña: los servicios son servicios systemd **de usuario**.
 
 ### Opción 2: Comandos Directos
 
@@ -96,8 +102,8 @@ Se abrirá un menú interactivo con todas las opciones:
 ### Opción 3: Íconos del Escritorio
 
 **Doble click en:**
-- 💚 **Biomed Pi5 (DESARROLLO)** → Inicia los 4 servicios en modo dev con hot reload
-- 🚀 **Biomed Pi5 (PRODUCCIÓN)** → Inicia en modo producción con PWA HTTPS instalable
+- 💚 **Biomed Pi5 (DESARROLLO)** → Detiene los servicios de producción y abre los 4 componentes en terminales, con hot reload (PWA en `http://harlink.local:3000`)
+- 🚀 **Biomed Pi5 (PRODUCCIÓN)** → (Re)inicia los servicios de producción (PWA HTTPS compilada, instalable) y muestra su estado
 
 > Los accesos directos se crean automáticamente al ejecutar `setup.sh`. Si no aparecen, vuelve a ejecutarlo.
 
@@ -137,6 +143,8 @@ Abre un menú visual donde puedes:
 
 ### Auto-arranque (Boot)
 
+`setup.sh` lo deja **habilitado** por defecto.
+
 **Habilitar inicio automático** (arrancan al encender la Pi):
 ```bash
 ./biomed-control.sh enable
@@ -162,9 +170,14 @@ Abre un menú visual donde puedes:
 ./biomed-control.sh logs pwa
 ```
 
-**Reinstalar servicios systemd** (si algo crashea):
+**Reinstalar servicios** (si algo crashea o moviste el proyecto de carpeta):
 ```bash
 ./biomed-control.sh reinstall
+```
+
+**Recompilar la PWA** (después de editar `services/webapp/`; producción usa la versión compilada):
+```bash
+./biomed-control.sh build
 ```
 
 **Limpiar logs antiguos:**
@@ -176,14 +189,18 @@ Abre un menú visual donde puedes:
 
 ## 🏗️ Servicios del Sistema
 
-El sistema está compuesto por 4 servicios independientes gestionados por systemd:
+El sistema está compuesto por 4 componentes independientes:
 
-| Servicio | Descripción | Puerto |
-|----------|-------------|--------|
-| **biomed-edge** | Interfaz PyQt6, lee sensores físicos | Display |
-| **biomed-mqtt-subscriber** | Replica datos procesados → storage.db | - |
-| **biomed-fastapi** | API REST para PWA | 8000 |
-| **biomed-pwa** | PWA modo producción (HTTPS) | 3000 |
+| Componente | Descripción | Puerto | Cómo arranca |
+|----------|-------------|--------|--------------|
+| **biomed-edge** | Interfaz PyQt6, lee sensores físicos | Pantalla | Autoarranque del escritorio (`~/.config/autostart/biomed-edge.desktop`) |
+| **biomed-mqtt-subscriber** | Replica datos procesados → storage.db | - | Servicio systemd de usuario |
+| **biomed-fastapi** | API REST para PWA | 8000 | Servicio systemd de usuario |
+| **biomed-pwa** | PWA compilada, producción (HTTPS) | 3000 | Servicio systemd de usuario |
+
+- Los 3 servicios son **de usuario** (`~/.config/systemd/user/`): se controlan sin `sudo` (`systemctl --user status biomed-pwa`). Con *linger* activo (lo configura `setup.sh`) arrancan al encender la Pi, aunque nadie inicie sesión, y se reinician solos si fallan.
+- La Edge UI necesita el escritorio (Wayland), por eso se abre con el autoarranque del escritorio y no como servicio.
+- La PWA consume la API a través de su propio servidor (`/backend/...` → `127.0.0.1:8000`), así que funciona por `harlink.local` o por IP, por HTTP o HTTPS, sin configurar nada.
 
 ### Flujo de datos
 
@@ -207,7 +224,7 @@ Edge → lee sensores → guarda biomed.db → publica MQTT
 
 | Servicio | URL | Cuándo usar |
 |----------|-----|-------------|
-| PWA Prod | https://harlink.local:3000 | Modo producción (instalable) |
+| PWA Prod | https://harlink.local:3000 (o `https://<IP>:3000`) | Modo producción (instalable) |
 | PWA Dev | http://harlink.local:3000 | Desarrollo con hot reload |
 | API Docs | http://harlink.local:8000/docs | Swagger UI interactivo |
 | API Health | http://harlink.local:8000/health | Verificar funcionamiento |
@@ -232,29 +249,26 @@ Edge → lee sensores → guarda biomed.db → publica MQTT
 
 ### Para Presentaciones / Demos
 
+No hay que hacer nada: después de `setup.sh` todo arranca solo al encender la Pi.
+PWA instalable: https://harlink.local:3000
+
+Si lo deshabilitaste para programar, vuelve a dejarlo listo con:
 ```bash
-# 1. Habilitar auto-arranque
 ./biomed-control.sh enable   # opción [5] en menú interactivo
-
-# 2. Reiniciar Pi
-sudo reboot
-
-# Todo arranca automáticamente — PWA instalable: https://harlink.local:3000
 ```
 
 ### Para Desarrollo / Programación
 
+**Rápido:** doble click en **Biomed Pi5 (DESARROLLO)**. Detiene los servicios de producción y abre los 4 componentes con hot reload (PWA en `http://harlink.local:3000`). Para volver: ícono **PRODUCCIÓN** o reiniciar la Pi.
+
+**Sesión larga** (que no arranque producción al reiniciar):
 ```bash
-# 1. Deshabilitar auto-arranque
-./biomed-control.sh disable   # opción [6] en menú interactivo
-
-# 2. Cuando necesites probar, inicia manualmente
-./biomed-control.sh start
-
-# 3. Desarrollar PWA con hot reload
+./biomed-control.sh disable   # opción [6]
+./biomed-control.sh stop
 cd services/webapp && npm run dev
-# http://harlink.local:3000
 ```
+
+Al terminar, si cambiaste la webapp: `./biomed-control.sh build` y luego `./biomed-control.sh enable`.
 
 ---
 
@@ -342,7 +356,8 @@ bash recover_venv.sh
 
 ### Node.js / webapp no arranca
 ```bash
-cd services/webapp && npm install
+cd services/webapp && npm ci && cd ../..
+./biomed-control.sh build          # recompila y reinicia la PWA
 ```
 
 ### Mosquitto no corre
@@ -359,21 +374,24 @@ i2cdetect -y 1
 
 ### Servicios no arrancan
 ```bash
-./biomed-control.sh logs edge      # ver error
-./biomed-control.sh reinstall      # reinstalar servicios systemd
+./biomed-control.sh status         # qué está activo
+./biomed-control.sh logs fastapi   # ver error (edge | mqtt-subscriber | fastapi | pwa)
+./biomed-control.sh reinstall      # reinstalar servicios
 ```
 
 ### Edge no aparece en pantalla
 ```bash
-echo $DISPLAY   # debe ser :0
-xhost +local:
-sudo systemctl restart biomed-edge
+./biomed-control.sh edge-start     # abrirla en el escritorio actual
+./biomed-control.sh logs edge      # ver error (logs/edge.log)
+ls ~/.config/autostart/biomed-edge.desktop   # autoarranque presente
 ```
 
-### PWA no carga
+### PWA no carga / sin datos
 ```bash
+./biomed-control.sh status         # prueba PWA + API de punta a punta
 ls services/webapp/*.pem           # verificar certificados SSL
 ./biomed-control.sh logs pwa
+./biomed-control.sh build          # recompilar si cambiaste la webapp
 ```
 
 ### Sesiones "En curso" huérfanas
@@ -393,9 +411,10 @@ biomed-pi5/
 ├── biomed-control.sh        # ← Script helper interactivo (servicios)
 ├── start_biomed.sh          # ← Launcher modo desarrollo
 ├── start_biomed_prod.sh     # ← Launcher modo producción
-├── stop_biomed.sh           # ← Detener servicios manuales
+├── stop_biomed.sh           # ← Detener todo (servicios y modo desarrollo)
 ├── main.py                  # ← Entry point Edge UI (PyQt6)
-├── requirements.txt         # ← Dependencias Python
+├── requirements.txt         # ← Dependencias Python (directas)
+├── requirements.lock        # ← Versiones exactas verificadas (constraints)
 ├── INSTRUCTIVO.md           # ← Este archivo
 ├── STRUCTURE.md             # ← Arquitectura técnica detallada
 │
@@ -405,8 +424,8 @@ biomed-pi5/
 │   └── patient.json         # ← Datos del paciente activo
 │
 ├── data/
-│   ├── biomed.db            # ← DB local Edge (gitignored)
-│   └── storage.db           # ← DB permanente API (gitignored)
+│   ├── biomed.db            # ← DB local Edge (datos de demo, en el repo)
+│   └── storage.db           # ← DB permanente API (datos de demo, en el repo)
 │
 └── services/
     ├── mqtt_subscriber.py   # ← Replica MQTT → storage.db
@@ -421,12 +440,11 @@ biomed-pi5/
 ## ✅ Checklist Pre-Uso
 
 - [ ] `sudo systemctl status mosquitto` → activo
-- [ ] `./biomed-control.sh status` → todos los servicios activos
-- [ ] `curl http://harlink.local:8000/health` → responde `{"status":"ok"}`
-- [ ] `https://harlink.local:3000` → PWA carga en el navegador
+- [ ] `./biomed-control.sh status` → todos los servicios activos y "PWA + API responden"
+- [ ] `https://harlink.local:3000` → PWA carga con datos en el navegador
 - [ ] Sensores físicos conectados (I2C)
 
 ---
 
-**Última actualización:** Junio 2026
-**Versión:** 5.0 (setup.sh + recover_venv.sh + overlay bienvenida + harlink.local)
+**Última actualización:** Octubre 2026
+**Versión:** 6.0 (servicios de usuario + arranque automático + PWA compilada + proxy /backend)

@@ -2,7 +2,10 @@
 # Inicia todos los servicios en tmux
 
 SESSION="biomed"
-PROJECT_DIR="/home/harlink/biomed-pi5"
+PROJECT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
+
+# Liberar puertos 8000/3000 y la Edge UI de los servicios de producción
+"$PROJECT_DIR/biomed-control.sh" stop > /dev/null 2>&1
 
 # Matar sesión anterior si existe
 tmux kill-session -t $SESSION 2>/dev/null

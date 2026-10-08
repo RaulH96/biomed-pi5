@@ -13,6 +13,8 @@
 #    · Hostname harlink → harlink.local (sin depender de IP)
 #    · avahi-daemon para mDNS
 #    · Directorio assets/
+#    · PWA compilada para producción
+#    · Servicios de usuario + arranque automático (todo arranca al encender)
 # =============================================================
 
 set -euo pipefail
@@ -20,6 +22,15 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"
 LOG_FILE="$PROJECT_DIR/setup.log"
+RUN_USER="$(id -un)"
+NEED_REBOOT=0
+
+# Los servicios se instalan para el usuario que corre el script: con sudo
+# quedarían a nombre de root y la Edge UI no podría abrirse en el escritorio.
+if [ "$(id -u)" -eq 0 ]; then
+    echo "No ejecutes setup.sh con sudo: corre 'bash setup.sh' (pedirá la contraseña cuando haga falta)."
+    exit 1
+fi
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -46,7 +57,7 @@ fi
 # ─────────────────────────────────────────────────────────────
 # 1. Sistema: actualizar e instalar paquetes base
 # ─────────────────────────────────────────────────────────────
-step "1/8  Paquetes del sistema"
+step "1/9  Paquetes del sistema"
 # python3-lgpio: lgpio no se instala bien con pip (compila contra liblgpio)
 # libqt6* / libxcb-cursor0: librerías gráficas que usa el wheel de PyQt6
 APT_PACKAGES=(
@@ -75,7 +86,7 @@ fi
 # ─────────────────────────────────────────────────────────────
 # 2. Mosquitto MQTT Broker
 # ─────────────────────────────────────────────────────────────
-step "2/8  Mosquitto MQTT Broker"
+step "2/9  Mosquitto MQTT Broker"
 # mosquitto vive en /usr/sbin (fuera del PATH de usuario): se consulta a dpkg.
 # Ojo: "mosquitto -v" no imprime la versión, ARRANCA el broker en modo verbose.
 if dpkg -s mosquitto &>/dev/null; then
@@ -93,7 +104,7 @@ ok "Mosquitto activo y habilitado en arranque"
 # ─────────────────────────────────────────────────────────────
 # 3. Node.js + npm
 # ─────────────────────────────────────────────────────────────
-step "3/8  Node.js + npm"
+step "3/9  Node.js + npm"
 if command -v node &>/dev/null; then
     ok "Node.js ya instalado: $(node --version)"
 else
@@ -106,12 +117,13 @@ fi
 # ─────────────────────────────────────────────────────────────
 # 4. Interfaces de hardware: I2C + SPI
 # ─────────────────────────────────────────────────────────────
-step "4/8  Interfaces de hardware (I2C / SPI)"
+step "4/9  Interfaces de hardware (I2C / SPI)"
 if [ -e /dev/i2c-1 ] && [ -e /dev/spidev0.0 ]; then
     ok "I2C y SPI ya habilitados"
 elif command -v raspi-config &>/dev/null; then
     sudo raspi-config nonint do_i2c 0 && ok "I2C habilitado"
     sudo raspi-config nonint do_spi 0 && ok "SPI habilitado"
+    NEED_REBOOT=1
 else
     warn "raspi-config no disponible — habilita I2C/SPI manualmente"
 fi
@@ -119,13 +131,14 @@ fi
 # ─────────────────────────────────────────────────────────────
 # 5. Hostname harlink + avahi (harlink.local sin depender de IP)
 # ─────────────────────────────────────────────────────────────
-step "5/8  Hostname y mDNS (harlink.local)"
+step "5/9  Hostname y mDNS (harlink.local)"
 CURRENT_HOSTNAME=$(hostname)
 if [ "$CURRENT_HOSTNAME" != "Harlink" ] && [ "$CURRENT_HOSTNAME" != "harlink" ]; then
     info "Configurando hostname → harlink"
     sudo hostnamectl set-hostname harlink
     sudo sed -i "s/$CURRENT_HOSTNAME/harlink/g" /etc/hosts
     ok "Hostname configurado: harlink"
+    NEED_REBOOT=1
 else
     ok "Hostname ya correcto: $CURRENT_HOSTNAME"
 fi
@@ -142,7 +155,7 @@ ok "avahi-daemon activo → accesible como harlink.local desde cualquier disposi
 # ─────────────────────────────────────────────────────────────
 # 6. Python venv + requirements
 # ─────────────────────────────────────────────────────────────
-step "6/8  Python venv + dependencias"
+step "6/9  Python venv + dependencias"
 if [ -d "$VENV_DIR" ]; then
     warn "Eliminando venv anterior..."
     rm -rf "$VENV_DIR"
@@ -167,7 +180,7 @@ fi
 # ─────────────────────────────────────────────────────────────
 # 7. Webapp Next.js: instalar node_modules + certificados SSL
 # ─────────────────────────────────────────────────────────────
-step "7/8  Webapp Next.js (npm install + SSL)"
+step "7/9  Webapp Next.js (npm ci + SSL + compilación)"
 WEBAPP_DIR="$PROJECT_DIR/services/webapp"
 if [ -f "$WEBAPP_DIR/package.json" ]; then
     info "Instalando dependencias npm..."
@@ -205,10 +218,23 @@ else
     ok "Certificado SSL ya existe"
 fi
 
+# Compilación de producción: la PWA de producción corre con NODE_ENV=production
+# (más rápida, menos RAM, sin el overlay de errores de desarrollo).
+if [ -f "$WEBAPP_DIR/package.json" ]; then
+    info "Compilando PWA para producción (npm run build)..."
+    cd "$WEBAPP_DIR"
+    if npm run build 2>&1 | tee -a "$LOG_FILE"; then
+        ok "PWA compilada"
+    else
+        warn "Falló npm run build — revisa setup.log (biomed-control.sh build para reintentar)"
+    fi
+    cd "$PROJECT_DIR"
+fi
+
 # ─────────────────────────────────────────────────────────────
 # 8. Directorios, estructura y accesos directos del escritorio
 # ─────────────────────────────────────────────────────────────
-step "8/8  Estructura del proyecto + accesos directos"
+step "8/9  Estructura del proyecto + accesos directos"
 mkdir -p "$PROJECT_DIR/assets"
 mkdir -p "$PROJECT_DIR/data"
 ok "Directorios assets/ y data/ verificados"
@@ -250,6 +276,39 @@ EOF
 chmod +x "$DESKTOP_DIR/Biomed-Pi5-PROD.desktop"
 
 ok "Accesos directos creados en el escritorio"
+
+# ─────────────────────────────────────────────────────────────
+# 9. Servicios y arranque automático
+# ─────────────────────────────────────────────────────────────
+step "9/9  Servicios y arranque automático"
+CONTROL="$PROJECT_DIR/biomed-control.sh"
+strip_colors() { sed 's/\x1b\[[0-9;]*m//g'; }
+
+# Versiones anteriores instalaban servicios de SISTEMA (/etc/systemd/system):
+# chocarían en los puertos con los nuevos servicios de usuario.
+LEGACY_UNITS=$(ls /etc/systemd/system/biomed-*.service 2>/dev/null || true)
+if [ -n "$LEGACY_UNITS" ]; then
+    info "Retirando servicios de sistema antiguos..."
+    for unit in $LEGACY_UNITS; do
+        sudo systemctl disable --now "$(basename "$unit")" 2>&1 | tee -a "$LOG_FILE" || true
+        sudo rm -f "$unit"
+    done
+    sudo systemctl daemon-reload
+    ok "Servicios de sistema antiguos retirados"
+fi
+
+# Linger: el gestor de servicios del usuario arranca al encender la Pi,
+# sin esperar a que alguien inicie sesión.
+if [ "$(loginctl show-user "$RUN_USER" -p Linger --value 2>/dev/null)" != "yes" ]; then
+    sudo loginctl enable-linger "$RUN_USER"
+fi
+ok "Linger activo para $RUN_USER"
+
+"$CONTROL" install
+ok "Servicios de usuario instalados (~/.config/systemd/user)"
+"$CONTROL" enable  2>&1 | strip_colors | grep -E '▸|⚠' | tee -a "$LOG_FILE" || true
+ok "Arranque automático habilitado (servicios + Edge UI en el escritorio)"
+"$CONTROL" restart 2>&1 | strip_colors | grep -E '▸|PWA' | tee -a "$LOG_FILE" || true
 
 # ─────────────────────────────────────────────────────────────
 # Verificación final
@@ -302,6 +361,39 @@ check_py paho.mqtt.client
 check_py fastapi
 check_py uvicorn
 
+check_user_svc() {
+    if systemctl --user is-active --quiet "$1"; then
+        ok "  servicio $1 ✓  activo (arranque automático: $(systemctl --user is-enabled "$1" 2>/dev/null))"
+    else
+        warn "  servicio $1 ✗  no activo (ver: ./biomed-control.sh logs ${1#biomed-})"
+        ERRORS=$((ERRORS+1))
+    fi
+}
+check_user_svc biomed-mqtt-subscriber
+check_user_svc biomed-fastapi
+check_user_svc biomed-pwa
+
+# Prueba de punta a punta: página HTTPS + API a través del proxy /backend
+PWA_OK=0
+for _ in $(seq 1 30); do
+    if curl -sk --max-time 5 https://localhost:3000/backend/health 2>/dev/null | grep -q '"ok"'; then
+        PWA_OK=1; break
+    fi
+    sleep 2
+done
+if [ $PWA_OK -eq 1 ]; then
+    ok "  PWA + API responden ✓  (https://localhost:3000/backend/health)"
+else
+    warn "  PWA/API no responden en https://localhost:3000 ✗"
+    ERRORS=$((ERRORS+1))
+fi
+if [ -f "$HOME/.config/autostart/biomed-edge.desktop" ]; then
+    ok "  Edge UI ✓  se abre sola al iniciar el escritorio"
+else
+    warn "  Edge UI ✗  sin autoarranque"
+    ERRORS=$((ERRORS+1))
+fi
+
 # ─────────────────────────────────────────────────────────────
 # Resumen
 # ─────────────────────────────────────────────────────────────
@@ -316,21 +408,29 @@ else
     echo -e "${BOLD}${YELLOW}╚══════════════════════════════════════════════════════╝${NC}"
 fi
 
+IP_ACTUAL="$(hostname -I | awk '{print $1}')"
 echo ""
-echo -e "${BOLD}Accesos después del reinicio:${NC}"
-echo -e "  Edge UI (PyQt6)  →  bash start_biomed.sh"
+echo -e "${BOLD}Todo arranca solo al encender la Pi:${NC}"
+echo -e "  PWA (celular)    →  ${CYAN}https://harlink.local:3000${NC}   ó   ${CYAN}https://$IP_ACTUAL:3000${NC}"
 echo -e "  FastAPI docs     →  ${CYAN}http://harlink.local:8000/docs${NC}"
-echo -e "  PWA dev          →  ${CYAN}http://harlink.local:3000${NC}"
-echo -e "  PWA producción   →  ${CYAN}https://harlink.local:3000${NC}"
+echo -e "  Edge UI (PyQt6)  →  se abre sola en el escritorio"
 echo ""
-echo -e "${YELLOW}⚠  Se requiere reinicio para activar I2C/SPI${NC}"
+echo -e "${BOLD}Control:${NC} ./biomed-control.sh   (status · restart · logs · disable para programar)"
+echo -e "${BOLD}Desarrollo:${NC} ícono 'Biomed Pi5 (DESARROLLO)' (detiene los servicios y abre hot reload)"
 echo ""
-# Sin terminal (ssh no interactivo, cron…) read devuelve error y set -e
-# cortaría el script: se toma como "no".
-read -p "¿Reiniciar ahora? (s/N): " REBOOT || REBOOT=""
-if [[ "$REBOOT" =~ ^[Ss]$ ]]; then
-    info "Reiniciando..."
-    sudo reboot
+if [ $NEED_REBOOT -eq 1 ]; then
+    echo -e "${YELLOW}⚠  Se requiere reinicio para activar I2C/SPI / el nuevo hostname${NC}"
+    echo ""
+    # Sin terminal (ssh no interactivo, cron…) read devuelve error y set -e
+    # cortaría el script: se toma como "no".
+    read -p "¿Reiniciar ahora? (s/N): " REBOOT || REBOOT=""
+    if [[ "$REBOOT" =~ ^[Ss]$ ]]; then
+        echo "=== Setup finalizado: $(date) ===" >> "$LOG_FILE"
+        info "Reiniciando..."
+        sudo reboot
+    fi
+else
+    ok "No hace falta reiniciar: todo está corriendo"
 fi
 
 echo "=== Setup finalizado: $(date) ===" >> "$LOG_FILE"
