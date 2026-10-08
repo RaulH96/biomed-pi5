@@ -213,6 +213,11 @@ mkdir -p "$PROJECT_DIR/assets"
 mkdir -p "$PROJECT_DIR/data"
 ok "Directorios assets/ y data/ verificados"
 
+# Los accesos directos exigen que su Exec sea ejecutable: si no, el escritorio
+# los rechaza con "Archivo de entrada de escritorio no válido".
+chmod +x "$PROJECT_DIR"/*.sh
+ok "Scripts .sh marcados como ejecutables"
+
 DESKTOP_DIR="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
 mkdir -p "$DESKTOP_DIR"
 
@@ -225,7 +230,7 @@ Comment=Sistema de Monitoreo Biomédico - Modo Desarrollo (Hot Reload)
 Exec=$PROJECT_DIR/start_biomed.sh
 Icon=$PROJECT_DIR/icon.png
 Terminal=false
-Categories=Medical;Science;
+Categories=Science;MedicalSoftware;
 StartupNotify=true
 EOF
 chmod +x "$DESKTOP_DIR/Biomed-Pi5.desktop"
@@ -239,7 +244,7 @@ Comment=Sistema de Monitoreo Biomédico - Modo Producción (PWA Instalable)
 Exec=$PROJECT_DIR/start_biomed_prod.sh
 Icon=$PROJECT_DIR/icon.png
 Terminal=false
-Categories=Medical;Science;
+Categories=Science;MedicalSoftware;
 StartupNotify=true
 EOF
 chmod +x "$DESKTOP_DIR/Biomed-Pi5-PROD.desktop"
