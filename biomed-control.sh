@@ -84,7 +84,9 @@ edge_start() {
     # setsid -f: lanza la Edge UI en su propia sesión y regresa de inmediato,
     # sin dejar ningún proceso intermedio reteniendo la salida de quien llamó
     # (si no, "biomed-control.sh restart | ..." en setup.sh no terminaría nunca).
-    (cd "$PROJECT_DIR" && WAYLAND_DISPLAY="$display" exec setsid -f \
+    # PYTHONUNBUFFERED: sin él los print() se quedan en el búfer y logs/edge.log
+    # no muestra nada hasta que la app termina.
+    (cd "$PROJECT_DIR" && WAYLAND_DISPLAY="$display" PYTHONUNBUFFERED=1 exec setsid -f \
         "$PROJECT_DIR/.venv/bin/python" "$PROJECT_DIR/main.py" \
         >> "$LOG_DIR/edge.log" 2>&1 < /dev/null)
     return 0
@@ -321,7 +323,10 @@ follow_logs() {
             mkdir -p "$LOG_DIR"; touch "$LOG_DIR/edge.log"
             tail -n 50 -f "$LOG_DIR/edge.log" ;;
         mqtt-subscriber|fastapi|pwa)
-            journalctl --user -u "biomed-$1" -n 50 -f ;;
+            # --user-unit lee del journal del sistema (requiere grupo adm, que
+            # tiene el usuario de Raspberry Pi OS): "journalctl --user" sale
+            # vacío porque el sistema no guarda journals separados por usuario.
+            journalctl --user-unit "biomed-$1" -n 50 -f ;;
         *)
             echo "Uso: $0 logs {edge|mqtt-subscriber|fastapi|pwa}"; return 1 ;;
     esac

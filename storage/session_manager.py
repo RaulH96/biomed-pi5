@@ -55,7 +55,10 @@ class SessionManager:
     def start_session(self, patient_id: str, patient_uuid: str = None):
         with self._lock:
             if self._session_id:
+                # La sesión anterior también debe cerrarse en storage.db (vía
+                # MQTT); si no, la PWA la muestra "En curso" para siempre.
                 close_session(self._session_id)
+                self._publish_session_end(self._session_id, time.time())
             self._patient_id       = patient_uuid or patient_id or "anonimo"
             self._session_id       = open_session(self._patient_id)
             self._temp_timer_start = None
@@ -69,24 +72,24 @@ class SessionManager:
             if self._session_id:
                 ended_at = time.time()
                 close_session(self._session_id)
-                
-                # Publicar cierre a MQTT
-                try:
-                    import json
-                    topic = f"biomed/pi5-001/session/end"
-                    payload = {
-                        "session_id": self._session_id,
-                        "ended_at": ended_at
-                    }
-                    self.mqtt.publish(topic, payload)
-                    print(f"[MQTT] Sesión {self._session_id} cerrada publicada")
-                except Exception as e:
-                    print(f"[MQTT] Error publicando cierre: {e}")
-                
+                self._publish_session_end(self._session_id, ended_at)
                 print(f"[Session] Cerrada id={self._session_id}")
                 self._session_id = None
                 self._patient_id = None
     
+    def _publish_session_end(self, session_id: int, ended_at: float):
+        """Publica el cierre de sesión a MQTT (el subscriber lo replica a storage.db)."""
+        try:
+            topic = f"biomed/pi5-001/session/end"
+            payload = {
+                "session_id": session_id,
+                "ended_at": ended_at
+            }
+            self.mqtt.publish(topic, payload)
+            print(f"[MQTT] Sesión {session_id} cerrada publicada")
+        except Exception as e:
+            print(f"[MQTT] Error publicando cierre: {e}")
+
     def _ensure_session(self) -> bool:
         """
         Retorna True si hay sesion activa.
