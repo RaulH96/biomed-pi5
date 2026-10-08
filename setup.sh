@@ -47,35 +47,47 @@ fi
 # 1. Sistema: actualizar e instalar paquetes base
 # ─────────────────────────────────────────────────────────────
 step "1/8  Paquetes del sistema"
-info "Actualizando listas de paquetes..."
-sudo apt-get update -qq 2>&1 | tee -a "$LOG_FILE"
-
-info "Instalando dependencias del sistema..."
-sudo apt-get install -y --fix-missing \
-    python3-venv python3-pip python3-dev python3-full \
-    libgpiod-dev libi2c-dev i2c-tools \
-    libusb-1.0-0-dev libftdi1-dev \
-    libqt6core6t64 libqt6gui6 libqt6widgets6 \
-    libopenblas-dev \
-    libjpeg-dev libpng-dev zlib1g-dev libfreetype-dev \
-    git curl wget \
-    2>&1 | tee -a "$LOG_FILE"
-ok "Paquetes base instalados"
+# python3-lgpio: lgpio no se instala bien con pip (compila contra liblgpio)
+# libqt6* / libxcb-cursor0: librerías gráficas que usa el wheel de PyQt6
+APT_PACKAGES=(
+    python3-venv python3-pip python3-dev python3-full
+    python3-lgpio
+    libgpiod-dev libi2c-dev i2c-tools
+    libusb-1.0-0-dev libftdi1-dev
+    libqt6core6t64 libqt6gui6 libqt6widgets6 libxcb-cursor0
+    libopenblas-dev
+    libjpeg-dev libpng-dev zlib1g-dev libfreetype-dev
+    git curl wget openssl sqlite3 tmux lxterminal
+)
+MISSING=()
+for p in "${APT_PACKAGES[@]}"; do
+    dpkg -s "$p" &>/dev/null || MISSING+=("$p")
+done
+if [ ${#MISSING[@]} -eq 0 ]; then
+    ok "Paquetes base ya instalados"
+else
+    info "Instalando: ${MISSING[*]}"
+    sudo apt-get update -qq 2>&1 | tee -a "$LOG_FILE"
+    sudo apt-get install -y --fix-missing "${MISSING[@]}" 2>&1 | tee -a "$LOG_FILE"
+    ok "Paquetes base instalados"
+fi
 
 # ─────────────────────────────────────────────────────────────
 # 2. Mosquitto MQTT Broker
 # ─────────────────────────────────────────────────────────────
 step "2/8  Mosquitto MQTT Broker"
-if command -v mosquitto &>/dev/null; then
-    ok "Mosquitto ya instalado: $(mosquitto -v 2>&1 | head -1)"
+# mosquitto vive en /usr/sbin (fuera del PATH de usuario): se consulta a dpkg.
+# Ojo: "mosquitto -v" no imprime la versión, ARRANCA el broker en modo verbose.
+if dpkg -s mosquitto &>/dev/null; then
+    ok "Mosquitto ya instalado: $(dpkg-query -W -f='${Version}' mosquitto)"
 else
     info "Instalando Mosquitto..."
     sudo apt-get install -y mosquitto mosquitto-clients 2>&1 | tee -a "$LOG_FILE"
     ok "Mosquitto instalado"
 fi
 
-sudo systemctl enable mosquitto
-sudo systemctl start mosquitto
+systemctl is-enabled --quiet mosquitto || sudo systemctl enable mosquitto
+systemctl is-active  --quiet mosquitto || sudo systemctl start mosquitto
 ok "Mosquitto activo y habilitado en arranque"
 
 # ─────────────────────────────────────────────────────────────
@@ -95,7 +107,9 @@ fi
 # 4. Interfaces de hardware: I2C + SPI
 # ─────────────────────────────────────────────────────────────
 step "4/8  Interfaces de hardware (I2C / SPI)"
-if command -v raspi-config &>/dev/null; then
+if [ -e /dev/i2c-1 ] && [ -e /dev/spidev0.0 ]; then
+    ok "I2C y SPI ya habilitados"
+elif command -v raspi-config &>/dev/null; then
     sudo raspi-config nonint do_i2c 0 && ok "I2C habilitado"
     sudo raspi-config nonint do_spi 0 && ok "SPI habilitado"
 else
@@ -117,12 +131,12 @@ else
 fi
 
 # avahi-daemon para resolver harlink.local en la red
-if ! dpkg -l avahi-daemon &>/dev/null 2>&1 | grep -q "^ii"; then
+if ! dpkg -s avahi-daemon &>/dev/null; then
     info "Instalando avahi-daemon..."
     sudo apt-get install -y avahi-daemon 2>&1 | tee -a "$LOG_FILE"
 fi
-sudo systemctl enable avahi-daemon
-sudo systemctl start avahi-daemon
+systemctl is-enabled --quiet avahi-daemon || sudo systemctl enable avahi-daemon
+systemctl is-active  --quiet avahi-daemon || sudo systemctl start avahi-daemon
 ok "avahi-daemon activo → accesible como harlink.local desde cualquier dispositivo en red"
 
 # ─────────────────────────────────────────────────────────────
@@ -138,10 +152,7 @@ python3 -m venv "$VENV_DIR" --system-site-packages
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip setuptools wheel 2>&1 | tee -a "$LOG_FILE"
 
-info "Instalando paquetes pesados primero (numpy, scipy, etc.)..."
-pip install numpy scipy pillow matplotlib 2>&1 | tee -a "$LOG_FILE"
-
-info "Instalando requirements.txt completo..."
+info "Instalando requirements.txt..."
 pip install -r "$PROJECT_DIR/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
 ok "Python venv listo"
 
@@ -187,7 +198,7 @@ mkdir -p "$PROJECT_DIR/assets"
 mkdir -p "$PROJECT_DIR/data"
 ok "Directorios assets/ y data/ verificados"
 
-DESKTOP_DIR="/home/harlink/Desktop"
+DESKTOP_DIR="$(xdg-user-dir DESKTOP 2>/dev/null || echo "$HOME/Desktop")"
 mkdir -p "$DESKTOP_DIR"
 
 cat > "$DESKTOP_DIR/Biomed-Pi5.desktop" << EOF
@@ -255,16 +266,21 @@ check_py() {
 check_cmd python3
 check_cmd node
 check_cmd npm
-check_cmd mosquitto
 check_svc mosquitto
 check_svc avahi-daemon
+check_py PyQt6.QtWidgets
+check_py matplotlib.backends.backend_qtagg
+check_py numpy
+check_py scipy.signal
+check_py yaml
+check_py lgpio
+check_py smbus2
+check_py board
+check_py adafruit_ads1x15.ads1115
+check_py adafruit_mlx90640
+check_py paho.mqtt.client
 check_py fastapi
 check_py uvicorn
-check_py paho.mqtt.client
-check_py pydantic
-check_py PyQt6.QtWidgets
-check_py yaml
-check_py numpy
 
 # ─────────────────────────────────────────────────────────────
 # Resumen
@@ -289,7 +305,9 @@ echo -e "  PWA producción   →  ${CYAN}https://harlink.local:3000${NC}"
 echo ""
 echo -e "${YELLOW}⚠  Se requiere reinicio para activar I2C/SPI${NC}"
 echo ""
-read -p "¿Reiniciar ahora? (s/N): " REBOOT
+# Sin terminal (ssh no interactivo, cron…) read devuelve error y set -e
+# cortaría el script: se toma como "no".
+read -p "¿Reiniciar ahora? (s/N): " REBOOT || REBOOT=""
 if [[ "$REBOOT" =~ ^[Ss]$ ]]; then
     info "Reiniciando..."
     sudo reboot
