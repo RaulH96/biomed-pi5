@@ -152,9 +152,17 @@ python3 -m venv "$VENV_DIR" --system-site-packages
 source "$VENV_DIR/bin/activate"
 pip install --upgrade pip setuptools wheel 2>&1 | tee -a "$LOG_FILE"
 
-info "Instalando requirements.txt..."
-pip install -r "$PROJECT_DIR/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
-ok "Python venv listo"
+# requirements.lock fija también las dependencias transitivas a las versiones
+# verificadas. Si una ya no instala (p. ej. un Python más nuevo sin wheel),
+# se reintenta sin el lock y se avisa.
+LOCK="$PROJECT_DIR/requirements.lock"
+if [ -f "$LOCK" ] && pip install -r "$PROJECT_DIR/requirements.txt" -c "$LOCK" 2>&1 | tee -a "$LOG_FILE"; then
+    ok "Python venv listo (versiones exactas de requirements.lock)"
+else
+    [ -f "$LOCK" ] && warn "Falló con requirements.lock — reintentando con versiones libres"
+    pip install -r "$PROJECT_DIR/requirements.txt" 2>&1 | tee -a "$LOG_FILE"
+    ok "Python venv listo (sin lock: revisa que la app funcione y regenera el lock)"
+fi
 
 # ─────────────────────────────────────────────────────────────
 # 7. Webapp Next.js: instalar node_modules + certificados SSL
@@ -164,7 +172,14 @@ WEBAPP_DIR="$PROJECT_DIR/services/webapp"
 if [ -f "$WEBAPP_DIR/package.json" ]; then
     info "Instalando dependencias npm..."
     cd "$WEBAPP_DIR"
-    npm install 2>&1 | tee -a "$LOG_FILE"
+    # npm ci instala exactamente lo que fija package-lock.json (reproducible);
+    # npm install solo si el lock no existe o no cuadra con package.json.
+    if [ -f package-lock.json ] && npm ci 2>&1 | tee -a "$LOG_FILE"; then
+        :
+    else
+        warn "npm ci no aplicable — usando npm install"
+        npm install 2>&1 | tee -a "$LOG_FILE"
+    fi
     cd "$PROJECT_DIR"
     ok "node_modules instalados"
 else

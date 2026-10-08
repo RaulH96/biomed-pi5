@@ -87,9 +87,17 @@ source "$VENV_DIR/bin/activate"
 pip install --upgrade pip setuptools wheel 2>&1 | tee -a "$LOG_FILE"
 ok "pip/setuptools/wheel actualizados"
 
-info "Instalando requirements.txt..."
-pip install -r "$REQUIREMENTS" 2>&1 | tee -a "$LOG_FILE"
-ok "Todos los paquetes instalados"
+# requirements.lock fija también las dependencias transitivas a las versiones
+# verificadas. Si una ya no instala (p. ej. un Python más nuevo sin wheel),
+# se reintenta sin el lock y se avisa.
+LOCK="$PROJECT_DIR/requirements.lock"
+if [ -f "$LOCK" ] && pip install -r "$REQUIREMENTS" -c "$LOCK" 2>&1 | tee -a "$LOG_FILE"; then
+    ok "Paquetes instalados con las versiones exactas de requirements.lock"
+else
+    [ -f "$LOCK" ] && warn "Falló con requirements.lock — reintentando con versiones libres"
+    pip install -r "$REQUIREMENTS" 2>&1 | tee -a "$LOG_FILE"
+    ok "Paquetes instalados (sin lock: revisa que la app funcione y regenera el lock)"
+fi
 
 # ── 5. Verificación ───────────────────────────────────────
 echo -e "\n${BOLD}${CYAN}5/5  Verificando importaciones críticas${NC}"

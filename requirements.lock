@@ -1,0 +1,51 @@
+# Versiones exactas verificadas (Pi 5 / Debian 13 trixie / Python 3.13, 2026-10-07).
+# Se aplica como constraints: pip install -r requirements.txt -c requirements.lock
+# Regenerar tras actualizar paquetes y probar la app: reemplazar las líneas
+# de abajo por la salida de:
+#   .venv/bin/pip freeze --local | grep -viE '^(pip|setuptools|wheel)=='
+Adafruit-Blinka==9.2.0
+Adafruit-Blinka-Raspberry-Pi5-Neopixel==1.0.0rc2
+adafruit-circuitpython-ads1x15==3.0.5
+adafruit-circuitpython-busdevice==5.2.17
+adafruit-circuitpython-connectionmanager==3.1.8
+adafruit-circuitpython-mlx90640==1.3.9
+adafruit-circuitpython-register==1.13.0
+adafruit-circuitpython-requests==4.1.17
+adafruit-circuitpython-typing==1.12.3
+Adafruit-PlatformDetect==3.89.1
+Adafruit_PureIO==1.1.12
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+binho-host-adapter==0.1.6
+click==8.5.0
+contourpy==1.4.0
+cycler==0.12.1
+fastapi==0.142.4
+fonttools==4.66.1
+h11==0.16.0
+httptools==0.8.0
+kiwisolver==1.5.1
+matplotlib==3.11.2
+opentelemetry-api==1.45.1
+paho-mqtt==2.1.0
+pydantic==2.13.5
+pydantic_core==2.46.5
+pyftdi==0.57.2
+pyparsing==3.3.3
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.2
+PyQt6_sip==13.13.0
+python-dotenv==1.2.4
+pyusb==1.3.1
+RPi.GPIO==0.7.1
+rpi_ws281x==5.0.0
+scipy==1.18.1
+starlette==1.7.0
+sysv_ipc==1.2.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.54.0
+uvloop==0.23.0
+watchfiles==1.3.0
+websockets==17.2
