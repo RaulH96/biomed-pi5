@@ -90,7 +90,7 @@ export default function PageAjustes({ dark, onToggleDark }: Props) {
         </Row>
         <Row label="API FastAPI" c={c}>
           <span style={{ fontSize: 12, color: c.sub }}>
-            {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}
+            {process.env.NEXT_PUBLIC_API_URL || '/backend'}
           </span>
         </Row>
       </Section>

@@ -231,8 +231,8 @@ function TrendBars({ sessions, dark, c }: any) {
         )}
       </div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-        {days.map(d => (
-          <span key={d} style={{ fontSize: 10, color: c.muted }}>{d}</span>
+        {days.map((d, i) => (
+          <span key={i} style={{ fontSize: 10, color: c.muted }}>{d}</span>
         ))}
       </div>
     </>

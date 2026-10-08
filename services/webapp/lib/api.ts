@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/backend'
 
 export async function fetchHealth() {
   const res = await fetch(`${API_BASE}/health`)

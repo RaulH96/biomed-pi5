@@ -17,7 +17,7 @@ export default function WaveformViewer({ sessionId, measurementId, measurementMe
 
   useEffect(() => {
     if (!measurementId) { setData(null); return }
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://192.168.1.75:8000'
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/backend'
     const url = type === 'spo2'
       ? `${API_BASE}/doctor/sessions/${sessionId}/waveform/spo2/${measurementId}`
       : `${API_BASE}/doctor/sessions/${sessionId}/waveform/bp/${measurementId}`

@@ -29,7 +29,7 @@ export default function PagePaciente({ dark, patient }: Props) {
   }, [])
 
   async function savePatient() {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/backend'
     await fetch(`${API_BASE}/patient`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
